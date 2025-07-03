@@ -17,16 +17,13 @@ import {
   Clock,
   ChevronLeft,
   ChevronRight,
-  SlidersHorizontal,
-  RefreshCw
+  SlidersHorizontal
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { createClient } from '@/lib/supabase/server'
 import { getUserListings } from '@/features/listings/actions'
 import { ListingCard } from '@/features/listings/components/listing-card'
-import { ManualScrapeButton } from '@/features/listings/components/manual-scrape-button'
-import { seedTestListings } from '@/features/listings/actions/seed-test-data'
 
 interface SearchParams {
   page?: string;
@@ -107,21 +104,11 @@ export default async function ListingsPage({
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-start">
-        <div>
-          <h1 className="text-3xl font-bold">Apartment Matches</h1>
-          <p className="text-muted-foreground mt-1">
-            Found {stats.total} apartments matching your preferences
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <ManualScrapeButton />
-          <form action={seedTestListings}>
-            <Button type="submit" variant="outline">
-              Add Test Data
-            </Button>
-          </form>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold">Apartment Matches</h1>
+        <p className="text-muted-foreground mt-1">
+          Found {stats.total} apartments matching your preferences
+        </p>
       </div>
 
       {/* Show preferences reminder if none set */}
