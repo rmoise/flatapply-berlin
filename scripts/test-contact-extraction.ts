@@ -1,37 +1,56 @@
-import { WGGesuchtPuppeteerScraper } from '../src/features/scraping/scrapers/wg-gesucht-puppeteer';
+import { WGGesuchtStealthScraper } from '../src/features/scraping/scrapers/wg-gesucht-stealth';
 import dotenv from 'dotenv';
 
 dotenv.config({ path: '.env.local' });
 
 async function testContactExtraction() {
-  console.log('Testing contact info extraction from WG-Gesucht...');
+  console.log('🧪 Testing contact name extraction from WG-Gesucht listings...\n');
   
-  const scraper = new WGGesuchtPuppeteerScraper();
-  
-  // Test with a specific listing URL
-  const testUrl = 'https://www.wg-gesucht.de/wohnungen-in-Berlin-Koepenick.8.2.1.0.html?offer=12100309';
+  const scraper = new WGGesuchtStealthScraper({
+    headless: true,
+    requestDelay: 2000
+  });
   
   try {
-    console.log('\nExtracting listing details from:', testUrl);
-    const listing = await scraper.extractFullListingDetails(testUrl);
+    // Scrape first page of listings
+    const searchParams = {
+      url: 'https://www.wg-gesucht.de/wg-zimmer-in-Berlin.8.0.1.0.html',
+      forUserId: 'test-user',
+      maxPages: 1
+    };
     
-    if (listing) {
-      console.log('\n✅ Listing extracted successfully:');
-      console.log(`Title: ${listing.title}`);
-      console.log(`Price: €${listing.price}`);
-      console.log(`Size: ${listing.size}m²`);
-      console.log(`Rooms: ${listing.rooms}`);
-      console.log(`District: ${listing.district}`);
-      console.log(`\n📞 Contact Information:`);
-      console.log(`Name: ${listing.contactName || '[Not found]'}`);
-      console.log(`Phone: ${listing.contactPhone || '[Not found]'}`);
-      console.log(`Email: ${listing.contactEmail || '[Not found]'}`);
-      console.log(`\n📝 Description preview:`);
-      console.log(listing.description?.substring(0, 200) + '...');
-      console.log(`\n🖼️  Images: ${listing.images?.length || 0}`);
+    console.log('📋 Scraping listings...');
+    const listings = await scraper.scrapeListings(searchParams);
+    
+    console.log(`✅ Found ${listings.length} listings\n`);
+    
+    // Show contact names found
+    const listingsWithContacts = listings.filter(l => l.contact?.name);
+    console.log(`📧 Listings with contact names: ${listingsWithContacts.length}/${listings.length}\n`);
+    
+    if (listingsWithContacts.length > 0) {
+      console.log('Sample listings with contact names:');
+      listingsWithContacts.slice(0, 5).forEach((listing, idx) => {
+        console.log(`\n${idx + 1}. ${listing.title}`);
+        console.log(`   👤 Contact: ${listing.contact?.name}`);
+        console.log(`   💰 Price: €${listing.price || listing.costs?.baseRent}/month`);
+        console.log(`   📍 Location: ${listing.location?.district || 'Unknown'}`);
+      });
     } else {
-      console.log('❌ Failed to extract listing');
+      console.log('❌ No contact names found. Showing first 3 listings for debugging:');
+      listings.slice(0, 3).forEach((listing, idx) => {
+        console.log(`\n${idx + 1}. ${listing.title}`);
+        console.log(`   Contact info:`, listing.contact);
+      });
     }
+    
+    // Stats
+    console.log('\n📊 Statistics:');
+    console.log(`   Total listings: ${listings.length}`);
+    console.log(`   With contact names: ${listingsWithContacts.length} (${Math.round(listingsWithContacts.length / listings.length * 100)}%)`);
+    
+    // Cleanup
+    await scraper.cleanup();
     
   } catch (error) {
     console.error('❌ Error:', error);
@@ -81,6 +100,4 @@ function testPhonePatterns() {
   });
 }
 
-testContactExtraction().then(() => {
-  testPhonePatterns();
-});
+testContactExtraction().catch(console.error);

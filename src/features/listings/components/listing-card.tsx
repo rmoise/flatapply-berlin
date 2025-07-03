@@ -9,7 +9,8 @@ import {
   Calendar,
   Heart,
   Eye,
-  ExternalLink
+  ExternalLink,
+  Building2
 } from "lucide-react"
 import Link from "next/link"
 import { useState } from "react"
@@ -190,6 +191,12 @@ export function ListingCard({ listing, match, userId }: ListingCardProps) {
               {getRoomDisplay()}
             </span>
             {listing.size_sqm && <span>{listing.size_sqm} m²</span>}
+            {listing.floor !== undefined && listing.floor !== null && (
+              <span className="flex items-center">
+                <Building2 className="mr-1 h-3 w-3" />
+                {listing.floor === 0 ? 'Ground' : listing.floor}{listing.total_floors ? `/${listing.total_floors}` : ''} floor
+              </span>
+            )}
           </div>
           <span className="flex items-center">
             <Calendar className="mr-1 h-3 w-3" />

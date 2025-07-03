@@ -29,12 +29,20 @@ import {
   Zap,
   CircleUserRound,
   Building,
+  Building2,
   Layers,
   Sparkles,
   Send,
   FileText,
   AlertCircle,
-  Info
+  Info,
+  Waves,
+  Shirt,
+  Dog,
+  Users,
+  Cigarette,
+  Baby,
+  Heart as HeartIcon
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
@@ -229,7 +237,7 @@ export default async function ListingDetailPage({
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="flex items-center gap-2">
                   <Home className="h-4 w-4 text-muted-foreground" />
                   <div>
@@ -244,6 +252,18 @@ export default async function ListingDetailPage({
                     <div className="text-sm text-muted-foreground">Total area</div>
                   </div>
                 </div>
+                {formattedListing.floor !== undefined && formattedListing.floor !== null && (
+                  <div className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <div className="font-medium">
+                        {formattedListing.floor}{formattedListing.floor === 0 ? ' (Ground)' : ''}
+                        {formattedListing.totalFloors ? `/${formattedListing.totalFloors}` : ''} floor
+                      </div>
+                      <div className="text-sm text-muted-foreground">Floor level</div>
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <div>
@@ -300,6 +320,24 @@ export default async function ListingDetailPage({
                           <span className="text-sm">Fitted kitchen</span>
                         </div>
                       )}
+                      {formattedListing.amenities.balcony && (
+                        <div className="flex items-center gap-2">
+                          <Home className="h-4 w-4 text-green-600" />
+                          <span className="text-sm">Balcony</span>
+                        </div>
+                      )}
+                      {formattedListing.amenities.terrace && (
+                        <div className="flex items-center gap-2">
+                          <Trees className="h-4 w-4 text-green-600" />
+                          <span className="text-sm">Terrace</span>
+                        </div>
+                      )}
+                      {formattedListing.amenities.garden && (
+                        <div className="flex items-center gap-2">
+                          <Trees className="h-4 w-4 text-green-600" />
+                          <span className="text-sm">Garden</span>
+                        </div>
+                      )}
                       {formattedListing.amenities.elevator && (
                         <div className="flex items-center gap-2">
                           <Building className="h-4 w-4 text-green-600" />
@@ -308,26 +346,106 @@ export default async function ListingDetailPage({
                       )}
                       {formattedListing.amenities.basement && (
                         <div className="flex items-center gap-2">
-                          <Home className="h-4 w-4 text-green-600" />
+                          <Layers className="h-4 w-4 text-green-600" />
                           <span className="text-sm">Basement</span>
                         </div>
                       )}
-                      {!formattedListing.amenities.balcony && (
-                        <div className="flex items-center gap-2 opacity-50">
-                          <Home className="h-4 w-4" />
-                          <span className="text-sm">No balcony</span>
+                      {formattedListing.amenities.parking && (
+                        <div className="flex items-center gap-2">
+                          <Car className="h-4 w-4 text-green-600" />
+                          <span className="text-sm">Parking</span>
                         </div>
                       )}
-                      {!formattedListing.amenities.parking && (
-                        <div className="flex items-center gap-2 opacity-50">
-                          <Car className="h-4 w-4" />
-                          <span className="text-sm">No parking</span>
+                      {formattedListing.amenities.furnished && (
+                        <div className="flex items-center gap-2">
+                          <Sofa className="h-4 w-4 text-green-600" />
+                          <span className="text-sm">Furnished</span>
                         </div>
                       )}
-                      <div className="flex items-center gap-2">
-                        <CircleUserRound className="h-4 w-4 text-yellow-600" />
-                        <span className="text-sm">Pets negotiable</span>
-                      </div>
+                      {formattedListing.amenities.dishwasher && (
+                        <div className="flex items-center gap-2">
+                          <Utensils className="h-4 w-4 text-green-600" />
+                          <span className="text-sm">Dishwasher</span>
+                        </div>
+                      )}
+                      {formattedListing.amenities.washing_machine && (
+                        <div className="flex items-center gap-2">
+                          <Waves className="h-4 w-4 text-green-600" />
+                          <span className="text-sm">Washing machine</span>
+                        </div>
+                      )}
+                      {formattedListing.amenities.dryer && (
+                        <div className="flex items-center gap-2">
+                          <Shirt className="h-4 w-4 text-green-600" />
+                          <span className="text-sm">Dryer</span>
+                        </div>
+                      )}
+                      {formattedListing.amenities.bathtub && (
+                        <div className="flex items-center gap-2">
+                          <Bath className="h-4 w-4 text-green-600" />
+                          <span className="text-sm">Bathtub</span>
+                        </div>
+                      )}
+                      {formattedListing.amenities.shower && (
+                        <div className="flex items-center gap-2">
+                          <Bath className="h-4 w-4 text-green-600" />
+                          <span className="text-sm">Shower</span>
+                        </div>
+                      )}
+                      {formattedListing.amenities.guest_toilet && (
+                        <div className="flex items-center gap-2">
+                          <Bath className="h-4 w-4 text-green-600" />
+                          <span className="text-sm">Guest toilet</span>
+                        </div>
+                      )}
+                      {formattedListing.amenities.accessible && (
+                        <div className="flex items-center gap-2">
+                          <Building className="h-4 w-4 text-green-600" />
+                          <span className="text-sm">Accessible</span>
+                        </div>
+                      )}
+                      {formattedListing.amenities.internet_included && (
+                        <div className="flex items-center gap-2">
+                          <Wifi className="h-4 w-4 text-green-600" />
+                          <span className="text-sm">Internet included</span>
+                        </div>
+                      )}
+                      {formattedListing.amenities.shared_flat && (
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4 text-green-600" />
+                          <span className="text-sm">Shared flat (WG)</span>
+                        </div>
+                      )}
+                      {formattedListing.amenities.pets_allowed && (
+                        <div className="flex items-center gap-2">
+                          <Dog className="h-4 w-4 text-green-600" />
+                          <span className="text-sm">Pets allowed</span>
+                        </div>
+                      )}
+                      {formattedListing.amenities.smoking_allowed === false && (
+                        <div className="flex items-center gap-2">
+                          <Cigarette className="h-4 w-4 text-red-600 opacity-60" />
+                          <span className="text-sm text-muted-foreground">No smoking</span>
+                        </div>
+                      )}
+                      {formattedListing.amenities.suitable_for_families && (
+                        <div className="flex items-center gap-2">
+                          <Baby className="h-4 w-4 text-green-600" />
+                          <span className="text-sm">Family-friendly</span>
+                        </div>
+                      )}
+                      {formattedListing.amenities.suitable_for_singles && (
+                        <div className="flex items-center gap-2">
+                          <CircleUserRound className="h-4 w-4 text-green-600" />
+                          <span className="text-sm">Singles welcome</span>
+                        </div>
+                      )}
+                      {formattedListing.amenities.suitable_for_couples && (
+                        <div className="flex items-center gap-2">
+                          <HeartIcon className="h-4 w-4 text-green-600" />
+                          <span className="text-sm">Couples welcome</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </TabsContent>

@@ -70,10 +70,13 @@ export class ListingNormalizer {
   private static normalizeDescription(description: string | undefined): string {
     if (!description) return '';
     
+    // Preserve line breaks and paragraph structure
     return description
       .trim()
-      .replace(/\s+/g, ' ') // Replace multiple spaces with single space
-      .replace(/\n{3,}/g, '\n\n'); // Replace multiple newlines with double newline
+      .replace(/\n\s*\n\s*\n+/g, '\n\n') // Replace 3+ newlines with exactly 2
+      .replace(/[ \t]+/g, ' ') // Replace multiple spaces/tabs with single space (but NOT newlines)
+      .replace(/[ \t]+$/gm, '') // Remove trailing spaces on each line
+      .replace(/^[ \t]+/gm, ''); // Remove leading spaces on each line
   }
 
   private static normalizeDistrict(district: string | undefined): string | undefined {

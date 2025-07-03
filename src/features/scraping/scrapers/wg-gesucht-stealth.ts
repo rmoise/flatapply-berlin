@@ -734,8 +734,40 @@ export class WGGesuchtStealthScraper {
           const thumbnail = imgEl?.src || '';
           
           // Extract provider info if available
-          const providerEl = item.querySelector('.ml5.mr5.mb5');
-          const provider = providerEl?.textContent?.trim() || '';
+          // The contact name is typically in a span with class "ml5"
+          let provider = '';
+          const contactEl = item.querySelector('span.ml5');
+          if (contactEl) {
+            const text = contactEl.textContent?.trim() || '';
+            // Clean up the name - remove "Online:" and time info
+            const nameMatch = text.match(/^([^\n]+?)(?:\s*Online:|$)/);
+            if (nameMatch) {
+              provider = nameMatch[1].trim();
+            } else {
+              provider = text.split('\n')[0].trim();
+            }
+          }
+          
+          // Fallback: try other selectors if ml5 didn't work
+          if (!provider) {
+            const selectors = [
+              '.list-details-ml > span:last-child',
+              '.ml5.mr5.mb5'
+            ];
+            
+            for (const selector of selectors) {
+              const el = item.querySelector(selector);
+              if (el) {
+                const text = el.textContent?.trim() || '';
+                // Look for "von" (from) pattern
+                const vonMatch = text.match(/von\s+([^,\n]+)/);
+                if (vonMatch) {
+                  provider = vonMatch[1].trim();
+                  break;
+                }
+              }
+            }
+          }
           
           listings.push({
             id,
@@ -1145,14 +1177,16 @@ export class WGGesuchtStealthScraper {
           var selector = descriptionSelectors[i];
           var descEl = document.querySelector(selector);
           if (descEl) {
-            // Use innerText to preserve line breaks and formatting
+            // Use innerText to preserve line breaks from <br> tags
             var innerText = descEl.innerText;
             if (innerText && innerText.trim().length > 10) {
-              // Clean up excessive whitespace but preserve paragraph breaks
+              // Preserve exact formatting from the website
+              // Only remove lines that are ads or scripts
               result.description = innerText
                 .split('\n')
-                .map(function(line) { return line.trim(); })
-                .filter(function(line) { return line.length > 0 && !line.includes('googletag'); })
+                .filter(function(line) { 
+                  return !line.includes('googletag') && !line.includes('script');
+                })
                 .join('\n');
               break;
             }
@@ -1213,8 +1247,31 @@ export class WGGesuchtStealthScraper {
         }
         
         if (!costs.deposit) {
-          var depositMatch = pageText.match(/Kaution:\s*(\d+)\s*€/i);
-          if (depositMatch) costs.deposit = parseInt(depositMatch[1]);
+          // Check for "no deposit" patterns first
+          const noDepositPatterns = [
+            /keine\s*Kaution/i,
+            /Kaution:\s*keine/i,
+            /no\s*deposit/i,
+            /ohne\s*Kaution/i,
+            /Kaution:\s*-/i,
+            /Kaution:\s*0\s*€/i
+          ];
+          
+          let hasNoDeposit = false;
+          for (const pattern of noDepositPatterns) {
+            if (pageText.match(pattern)) {
+              hasNoDeposit = true;
+              break;
+            }
+          }
+          
+          if (hasNoDeposit) {
+            costs.deposit = 0;
+          } else {
+            // Try to extract numeric deposit
+            var depositMatch = pageText.match(/Kaution:\s*(\d+)\s*€/i);
+            if (depositMatch) costs.deposit = parseInt(depositMatch[1]);
+          }
         }
         
         // Calculate warm rent if missing but we have cold rent and utilities
@@ -1260,6 +1317,14 @@ export class WGGesuchtStealthScraper {
         var floorMatch = pageText.match(/(\d+)\.\s*(?:Stock|Etage|OG)/i);
         if (floorMatch) result.floor = parseInt(floorMatch[1]);
         
+        // Extract total floors
+        var totalFloorsMatch = pageText.match(/(?:Anzahl der Stockwerke|Stockwerke|floors total):\s*(\d+)/i);
+        if (!totalFloorsMatch) {
+          // Try alternative pattern
+          totalFloorsMatch = pageText.match(/(\d+)[\s-]?(?:stöckig|geschossig)/i);
+        }
+        if (totalFloorsMatch) result.totalFloors = parseInt(totalFloorsMatch[1]);
+        
         // Extract dates
         var fromMatch = pageText.match(/(?:frei ab|verfügbar ab)[\s:]*(\d{1,2}\.\d{1,2}\.\d{2,4})/i);
         if (fromMatch) result.availableFrom = fromMatch[1];
@@ -1278,20 +1343,45 @@ export class WGGesuchtStealthScraper {
         
         if (contactName) result.contactName = contactName;
         
-        // Extract amenities
+        // Extract amenities - comprehensive extraction
         var amenities = {};
         
-        // Check for common amenities in text
-        amenities.furnished = /möbliert|furnished/i.test(pageText);
-        amenities.kitchen = /(?:Einbauküche|EBK|kitchen)/i.test(pageText);
+        // Basic features
+        amenities.furnished = /möbliert|furnished|mobiliert/i.test(pageText);
+        amenities.kitchen = /(?:Einbauküche|EBK|kitchen|Küche vorhanden)/i.test(pageText);
         amenities.balcony = /Balkon|balcony/i.test(pageText);
+        amenities.terrace = /Terrasse|terrace/i.test(pageText);
         amenities.garden = /Garten|garden/i.test(pageText);
-        amenities.washingMachine = /Waschmaschine|washing machine/i.test(pageText);
+        amenities.basement = /(?:Keller|basement|cellar)/i.test(pageText);
+        
+        // Appliances
+        amenities.washingMachine = /(?:Waschmaschine|washing machine|Waschküche)/i.test(pageText);
+        amenities.dryer = /(?:Trockner|dryer|Wäschetrockner)/i.test(pageText);
         amenities.dishwasher = /(?:Spülmaschine|Geschirrspüler|dishwasher)/i.test(pageText);
-        amenities.parking = /(?:Parkplatz|Stellplatz|parking)/i.test(pageText);
+        
+        // Building features
+        amenities.parking = /(?:Parkplatz|Stellplatz|parking|Tiefgarage)/i.test(pageText);
         amenities.elevator = /(?:Aufzug|Fahrstuhl|elevator|lift)/i.test(pageText);
-        amenities.petsAllowed = /(?:Haustiere erlaubt|pets allowed)/i.test(pageText);
-        amenities.smokingAllowed = /(?:Rauchen erlaubt|smoking allowed)/i.test(pageText);
+        amenities.barrierFree = /(?:barrierefrei|barrier-free|rollstuhlgerecht|behindertengerecht)/i.test(pageText);
+        
+        // Internet & Utilities
+        amenities.internetIncluded = /(?:Internet inklusive|Internet incl|WLAN inklusive|WiFi included)/i.test(pageText);
+        amenities.heatingIncluded = /(?:Heizung inklusive|heating included|Heizkosten inklusive)/i.test(pageText);
+        amenities.electricityIncluded = /(?:Strom inklusive|electricity included|Stromkosten inklusive)/i.test(pageText);
+        
+        // Rules
+        amenities.petsAllowed = /(?:Haustiere erlaubt|pets allowed|Haustiere: Ja)/i.test(pageText);
+        amenities.smokingAllowed = /(?:Rauchen erlaubt|smoking allowed|Raucher willkommen)/i.test(pageText);
+        
+        // Bathroom features
+        amenities.bathtub = /(?:Badewanne|bathtub|Wanne)/i.test(pageText);
+        amenities.shower = /(?:Dusche|shower)/i.test(pageText);
+        amenities.guestToilet = /(?:Gäste-WC|guest toilet|Gästetoilette)/i.test(pageText);
+        
+        // Additional features
+        amenities.floorHeating = /(?:Fußbodenheizung|floor heating|underfloor heating)/i.test(pageText);
+        amenities.airConditioning = /(?:Klimaanlage|air conditioning|AC|Klima)/i.test(pageText);
+        amenities.cableTv = /(?:Kabelfernsehen|cable TV|Kabel-TV)/i.test(pageText);
         
         result.amenities = amenities;
         
@@ -1495,6 +1585,7 @@ export class WGGesuchtStealthScraper {
         size: details.size,
         rooms: details.rooms,
         floor: details.floor,
+        totalFloors: details.totalFloors,
         availableFrom: details.availableFrom,
         availableTo: details.availableTo,
         images: details.images || [],

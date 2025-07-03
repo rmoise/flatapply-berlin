@@ -183,18 +183,40 @@ export class DetailExtractorService {
         }
         
         // Extract Kaution (deposit)
-        const depositPatterns = [
-          /Kaution:\s*(\d+)\s*€/i,
-          /Deposit:\s*(\d+)\s*€/i,
-          /(\d+)\s*€\s*Kaution/i,
-          /Sicherheitsleistung:\s*(\d+)\s*€/i
+        // First check for "no deposit" patterns
+        const noDepositPatterns = [
+          /keine\s*Kaution/i,
+          /Kaution:\s*keine/i,
+          /no\s*deposit/i,
+          /ohne\s*Kaution/i,
+          /Kaution:\s*-/i,
+          /Kaution:\s*0\s*€/i
         ];
         
-        for (const pattern of depositPatterns) {
-          const match = pageText.match(pattern);
-          if (match) {
-            deposit = parseInt(match[1]);
+        let hasNoDeposit = false;
+        for (const pattern of noDepositPatterns) {
+          if (pageText.match(pattern)) {
+            hasNoDeposit = true;
+            deposit = 0;
             break;
+          }
+        }
+        
+        // If no "no deposit" pattern found, look for numeric deposit
+        if (!hasNoDeposit) {
+          const depositPatterns = [
+            /Kaution:\s*(\d+)\s*€/i,
+            /Deposit:\s*(\d+)\s*€/i,
+            /(\d+)\s*€\s*Kaution/i,
+            /Sicherheitsleistung:\s*(\d+)\s*€/i
+          ];
+          
+          for (const pattern of depositPatterns) {
+            const match = pageText.match(pattern);
+            if (match) {
+              deposit = parseInt(match[1]);
+              break;
+            }
           }
         }
         
