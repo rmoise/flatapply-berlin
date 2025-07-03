@@ -101,7 +101,6 @@ export const ROUTES = {
 export const API_ENDPOINTS = {
   WEBHOOK_STRIPE: '/api/webhooks/stripe',
   WEBHOOK_SCRAPER: '/api/webhooks/scraper',
-  CRON_SCRAPE: '/api/cron/scrape',
 } as const
 
 // Error messages

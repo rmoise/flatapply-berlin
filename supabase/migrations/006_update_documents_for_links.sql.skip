@@ -1,0 +1,48 @@
+-- Update documents table to support Google Drive links
+ALTER TABLE documents 
+  DROP COLUMN IF EXISTS file_size,
+  ADD COLUMN IF NOT EXISTS link_type TEXT CHECK (link_type IN ('google_drive', 'dropbox', 'onedrive', 'other')),
+  ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS last_verified TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS access_instructions TEXT;
+
+-- Rename file_url to document_url for clarity
+ALTER TABLE documents 
+  RENAME COLUMN file_url TO document_url;
+
+-- Add comments for clarity
+COMMENT ON COLUMN documents.document_url IS 'URL to the document (Google Drive share link, etc)';
+COMMENT ON COLUMN documents.link_type IS 'Type of cloud storage provider';
+COMMENT ON COLUMN documents.is_public IS 'Whether the link is publicly accessible';
+COMMENT ON COLUMN documents.last_verified IS 'Last time we verified the link is still valid';
+COMMENT ON COLUMN documents.access_instructions IS 'Instructions for accessing protected documents';
+
+-- Create a document templates table for user convenience
+CREATE TABLE IF NOT EXISTS document_templates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT,
+  folder_url TEXT NOT NULL,
+  contains_documents TEXT[] NOT NULL,
+  is_complete BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Example: User creates a "Rental Application Folder" template with all their docs
+COMMENT ON TABLE document_templates IS 'Pre-organized document folders users can share with multiple landlords';
+
+-- Add RLS policies
+ALTER TABLE document_templates ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage own document templates" ON document_templates
+  FOR ALL USING (auth.uid() = user_id);
+
+-- Update applications table to support document folder links
+ALTER TABLE applications 
+  ADD COLUMN IF NOT EXISTS documents_folder_url TEXT,
+  ADD COLUMN IF NOT EXISTS documents_access_note TEXT;
+
+COMMENT ON COLUMN applications.documents_folder_url IS 'Link to Google Drive folder with all application documents';
+COMMENT ON COLUMN applications.documents_access_note IS 'Note about document access (e.g., "View-only link, please request edit access if needed")';

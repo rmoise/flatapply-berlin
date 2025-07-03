@@ -73,3 +73,6 @@ logs/
 .cache/
 tmp/
 temp/
+
+# YoYo AI version control directory
+.yoyo/

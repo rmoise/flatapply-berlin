@@ -1,0 +1,127 @@
+{
+  "wg_gesucht": {
+    "enabled": true,
+    "maxRequestsPerHour": 100,
+    "priority": "high",
+    "searchConfig": {
+      "defaultPages": 3,
+      "resultsPerPage": 20,
+      "categories": ["wg-zimmer", "1-zimmer", "wohnungen"]
+    },
+    "auth": {
+      "required": false,
+      "type": "credentials",
+      "description": "Optional login for better access and fewer CAPTCHAs"
+    },
+    "features": {
+      "hasGallery": true,
+      "hasPhoneReveal": true,
+      "hasDetailApi": false,
+      "hasVirtualTours": false
+    },
+    "rateLimit": {
+      "requestDelay": 3000,
+      "errorBackoff": 5000,
+      "maxRetries": 3
+    },
+    "selectors": {
+      "listings": ".offer_list_item[data-id]",
+      "cookieConsent": "#cmpbntyestxt",
+      "captcha": "iframe[src*='recaptcha'], .challenge-form"
+    }
+  },
+  
+  "immobilienscout24": {
+    "enabled": true,
+    "maxRequestsPerHour": 500,
+    "priority": "high",
+    "searchConfig": {
+      "defaultPages": 10,
+      "resultsPerPage": 20
+    },
+    "auth": {
+      "required": false,
+      "type": "apify",
+      "description": "Uses Apify actor for reliable scraping"
+    },
+    "features": {
+      "hasGallery": true,
+      "hasPhoneReveal": true,
+      "hasDetailApi": true,
+      "hasVirtualTours": true
+    },
+    "rateLimit": {
+      "requestDelay": 0,
+      "errorBackoff": 5000,
+      "maxRetries": 3
+    },
+    "apify": {
+      "actorId": "dtrungtin/immobilienscout24-scraper",
+      "memoryMbytes": 1024,
+      "timeoutSecs": 300,
+      "maxItems": 1000
+    },
+    "selectors": {
+      "listings": "article[data-id]",
+      "cookieConsent": ".consent-banner button[data-action='accept']",
+      "captcha": "#captcha-box"
+    }
+  },
+  
+  "ebay_kleinanzeigen": {
+    "enabled": false,
+    "maxRequestsPerHour": 200,
+    "priority": "low",
+    "searchConfig": {
+      "defaultPages": 10,
+      "resultsPerPage": 25
+    },
+    "auth": {
+      "required": false,
+      "type": "cookie",
+      "description": "Optional login for contact info"
+    },
+    "features": {
+      "hasGallery": true,
+      "hasPhoneReveal": true,
+      "hasDetailApi": false,
+      "hasVirtualTours": false
+    },
+    "rateLimit": {
+      "requestDelay": 2000,
+      "errorBackoff": 3000,
+      "maxRetries": 5
+    },
+    "selectors": {
+      "listings": ".aditem",
+      "cookieConsent": "#gdpr-banner-accept",
+      "captcha": ".captcha-container"
+    }
+  },
+  
+  "immowelt": {
+    "enabled": false,
+    "maxRequestsPerHour": 80,
+    "priority": "medium",
+    "searchConfig": {
+      "defaultPages": 4,
+      "resultsPerPage": 20
+    },
+    "auth": {
+      "required": false,
+      "type": "credentials",
+      "description": "Optional for saved searches"
+    },
+    "features": {
+      "hasGallery": true,
+      "hasPhoneReveal": true,
+      "hasDetailApi": false,
+      "hasVirtualTours": true
+    },
+    "rateLimit": {
+      "requestDelay": 4000,
+      "errorBackoff": 6000,
+      "maxRetries": 3
+    }
+  }
+}

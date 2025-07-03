@@ -1,0 +1,36 @@
+# n8n with Puppeteer support for WG-Gesucht scraping
+FROM n8nio/n8n:latest
+
+USER root
+
+# Install Chromium and dependencies for Puppeteer
+RUN apk add --no-cache \
+    chromium \
+    nss \
+    freetype \
+    freetype-dev \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont \
+    nodejs \
+    yarn
+
+# Tell Puppeteer to skip installing Chrome. We'll use installed Chromium
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
+# Install Puppeteer and Puppeteer Extra
+RUN npm install -g puppeteer puppeteer-extra puppeteer-extra-plugin-stealth
+
+# Create symlink for Puppeteer
+RUN ln -s /usr/bin/chromium-browser /usr/bin/google-chrome
+
+USER node
+
+# Install n8n community nodes
+RUN cd /home/node && \
+    npm install n8n-nodes-puppeteer
+
+EXPOSE 5678
+
+CMD ["n8n"]

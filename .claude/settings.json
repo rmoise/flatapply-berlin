@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|MultiEdit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/testuser/Documents/flatapply-berlin/.claude/hooks/claude-rules-enforcer.sh",
+            "description": "Enforce all CLAUDE.md rules - blocks non-compliant code"
+          }
+        ]
+      }
+    ]
+  },
+  "description": "FlatApply Berlin development hooks - Enforces CLAUDE.md principles automatically"
+}

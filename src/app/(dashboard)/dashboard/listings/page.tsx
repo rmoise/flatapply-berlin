@@ -17,128 +17,131 @@ import {
   Clock,
   ChevronLeft,
   ChevronRight,
-  SlidersHorizontal
+  SlidersHorizontal,
+  RefreshCw
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
+import { createClient } from '@/lib/supabase/server'
+import { getUserListings } from '@/features/listings/actions'
+import { ListingCard } from '@/features/listings/components/listing-card'
+import { ManualScrapeButton } from '@/features/listings/components/manual-scrape-button'
+import { seedTestListings } from '@/features/listings/actions/seed-test-data'
 
-export default function ListingsPage() {
-  // TODO: Replace with real data from Supabase
-  const listings = [
-    {
-      id: "1",
-      title: "Beautiful 2-room apartment in Prenzlauer Berg",
-      price: 1200,
-      size: 65,
-      rooms: 2,
-      district: "Prenzlauer Berg",
-      address: "Stargarder Straße",
-      matchScore: 95,
-      platform: "immoscout24",
-      availableFrom: "2024-02-01",
-      isNew: true,
-      isSaved: false,
-      viewedAt: null,
-      images: ["/api/placeholder/400/300"]
-    },
-    {
-      id: "2",
-      title: "Cozy studio in Friedrichshain",
-      price: 850,
-      size: 35,
-      rooms: 1,
-      district: "Friedrichshain",
-      address: "Boxhagener Straße",
-      matchScore: 88,
-      platform: "wg_gesucht",
-      availableFrom: "2024-01-15",
-      isNew: true,
-      isSaved: true,
-      viewedAt: null,
-      images: ["/api/placeholder/400/300"]
-    },
-    {
-      id: "3",
-      title: "Modern 3-room flat with balcony",
-      price: 1650,
-      size: 85,
-      rooms: 3,
-      district: "Charlottenburg",
-      address: "Kantstraße",
-      matchScore: 82,
-      platform: "kleinanzeigen",
-      availableFrom: "2024-02-15",
-      isNew: false,
-      isSaved: false,
-      viewedAt: "2024-01-10",
-      images: ["/api/placeholder/400/300"]
-    },
-    {
-      id: "4",
-      title: "Spacious apartment near Tempelhofer Feld",
-      price: 1400,
-      size: 70,
-      rooms: 2.5,
-      district: "Neukölln",
-      address: "Hermannstraße",
-      matchScore: 79,
-      platform: "immowelt",
-      availableFrom: "2024-03-01",
-      isNew: false,
-      isSaved: false,
-      viewedAt: "2024-01-08",
-      images: ["/api/placeholder/400/300"]
-    },
-    {
-      id: "5",
-      title: "Charming altbau with high ceilings",
-      price: 1100,
-      size: 55,
-      rooms: 2,
-      district: "Kreuzberg",
-      address: "Oranienstraße",
-      matchScore: 91,
-      platform: "immoscout24",
-      availableFrom: "2024-01-20",
-      isNew: true,
-      isSaved: true,
-      viewedAt: null,
-      images: ["/api/placeholder/400/300"]
-    },
-    {
-      id: "6",
-      title: "Quiet apartment with garden access",
-      price: 950,
-      size: 48,
-      rooms: 1.5,
-      district: "Wedding",
-      address: "Müllerstraße",
-      matchScore: 75,
-      platform: "immonet",
-      availableFrom: "2024-02-10",
-      isNew: false,
-      isSaved: false,
-      viewedAt: "2024-01-12",
-      images: ["/api/placeholder/400/300"]
-    }
-  ]
+interface SearchParams {
+  page?: string;
+  sortBy?: string;
+  minRent?: string;
+  maxRent?: string;
+  minRooms?: string;
+  maxRooms?: string;
+  districts?: string;
+  tab?: string;
+}
 
+export default async function ListingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const supabase = await createClient()
+  
+  // Get current user
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  
+  if (authError || !user) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">Please log in to view your listings.</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Parse search params
+  const params = await searchParams;
+  const filters = {
+    page: parseInt(params.page || '1'),
+    sortBy: params.sortBy as any || 'match_score',
+    minRent: params.minRent ? parseInt(params.minRent) : undefined,
+    maxRent: params.maxRent ? parseInt(params.maxRent) : undefined,
+    minRooms: params.minRooms ? parseInt(params.minRooms) : undefined,
+    maxRooms: params.maxRooms ? parseInt(params.maxRooms) : undefined,
+    districts: params.districts ? params.districts.split(',') : undefined,
+    limit: 12,
+  }
+
+  const activeTab = params.tab || 'all'
+
+  // Fetch user listings
+  const result = await getUserListings(user.id, filters)
+  
+  if (!result.success) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="text-center py-12">
+          <p className="text-red-500">Error loading listings: {result.error}</p>
+        </div>
+      </div>
+    )
+  }
+
+  const { listings, pagination, preferences } = result
+  
+  // Calculate stats
   const stats = {
-    total: listings.length,
-    new: listings.filter(l => l.isNew).length,
-    saved: listings.filter(l => l.isSaved).length,
-    viewed: listings.filter(l => l.viewedAt).length
+    total: pagination.total,
+    new: listings.filter(match => {
+      const matchedAt = new Date(match.matched_at)
+      const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
+      return matchedAt > dayAgo
+    }).length,
+    saved: listings.filter(match => {
+      // TODO: Join with saved_listings table
+      return false // Placeholder
+    }).length,
+    viewed: listings.filter(match => match.viewed_at).length
   }
 
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold">Apartment Matches</h1>
-        <p className="text-muted-foreground mt-1">
-          Found {stats.total} apartments matching your preferences
-        </p>
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold">Apartment Matches</h1>
+          <p className="text-muted-foreground mt-1">
+            Found {stats.total} apartments matching your preferences
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <ManualScrapeButton />
+          <form action={seedTestListings}>
+            <Button type="submit" variant="outline">
+              Add Test Data
+            </Button>
+          </form>
+        </div>
       </div>
+
+      {/* Show preferences reminder if none set */}
+      {!preferences && (
+        <Card className="border-yellow-200 bg-yellow-50">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <TrendingUp className="h-5 w-5 text-yellow-600" />
+              <div>
+                <p className="font-medium text-yellow-800">Set your preferences to get better matches</p>
+                <p className="text-sm text-yellow-700">
+                  <Link href="/dashboard/preferences" className="underline">
+                    Configure your search preferences
+                  </Link> to see personalized apartment recommendations.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Filters Bar */}
       <Card>
@@ -154,16 +157,16 @@ export default function ListingsPage() {
               </div>
             </div>
             <div className="flex gap-2">
-              <Select defaultValue="match">
+              <Select defaultValue={filters.sortBy}>
                 <SelectTrigger className="w-[140px]">
                   <SelectValue placeholder="Sort by" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="match">Best Match</SelectItem>
-                  <SelectItem value="price-asc">Price: Low to High</SelectItem>
-                  <SelectItem value="price-desc">Price: High to Low</SelectItem>
-                  <SelectItem value="size">Size</SelectItem>
-                  <SelectItem value="date">Available Date</SelectItem>
+                  <SelectItem value="match_score">Best Match</SelectItem>
+                  <SelectItem value="price_asc">Price: Low to High</SelectItem>
+                  <SelectItem value="price_desc">Price: High to Low</SelectItem>
+                  <SelectItem value="size_asc">Size: Small to Large</SelectItem>
+                  <SelectItem value="size_desc">Size: Large to Small</SelectItem>
                   <SelectItem value="newest">Newest First</SelectItem>
                 </SelectContent>
               </Select>
@@ -173,8 +176,8 @@ export default function ListingsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Platforms</SelectItem>
-                  <SelectItem value="immoscout24">ImmoScout24</SelectItem>
                   <SelectItem value="wg_gesucht">WG-Gesucht</SelectItem>
+                  <SelectItem value="immoscout24">ImmoScout24</SelectItem>
                   <SelectItem value="kleinanzeigen">Kleinanzeigen</SelectItem>
                   <SelectItem value="immowelt">Immowelt</SelectItem>
                   <SelectItem value="immonet">Immonet</SelectItem>
@@ -190,146 +193,127 @@ export default function ListingsPage() {
       </Card>
 
       {/* Stats Tabs */}
-      <Tabs defaultValue="all" className="w-full">
+      <Tabs value={activeTab} className="w-full">
         <TabsList>
-          <TabsTrigger value="all">
-            All Listings
-            <Badge variant="secondary" className="ml-2">{stats.total}</Badge>
+          <TabsTrigger value="all" asChild>
+            <Link href="?tab=all">
+              All Listings
+              <Badge variant="secondary" className="ml-2">{stats.total}</Badge>
+            </Link>
           </TabsTrigger>
-          <TabsTrigger value="new">
-            New
-            <Badge variant="secondary" className="ml-2">{stats.new}</Badge>
+          <TabsTrigger value="new" asChild>
+            <Link href="?tab=new">
+              New
+              <Badge variant="secondary" className="ml-2">{stats.new}</Badge>
+            </Link>
           </TabsTrigger>
-          <TabsTrigger value="saved">
-            Saved
-            <Badge variant="secondary" className="ml-2">{stats.saved}</Badge>
+          <TabsTrigger value="saved" asChild>
+            <Link href="?tab=saved">
+              Saved
+              <Badge variant="secondary" className="ml-2">{stats.saved}</Badge>
+            </Link>
           </TabsTrigger>
-          <TabsTrigger value="viewed">
-            Viewed
-            <Badge variant="secondary" className="ml-2">{stats.viewed}</Badge>
+          <TabsTrigger value="viewed" asChild>
+            <Link href="?tab=viewed">
+              Viewed
+              <Badge variant="secondary" className="ml-2">{stats.viewed}</Badge>
+            </Link>
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="all" className="mt-6">
-          {/* Listings Grid */}
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {listings.map((listing) => (
-              <Card key={listing.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-                <div className="relative aspect-[4/3]">
-                  <Image
-                    src={listing.images[0]}
-                    alt={listing.title}
-                    fill
-                    className="object-cover"
-                  />
-                  <div className="absolute top-3 left-3 flex gap-2">
-                    {listing.isNew && (
-                      <Badge className="bg-blue-600">New</Badge>
-                    )}
-                    <Badge variant="secondary">{listing.matchScore}% match</Badge>
-                  </div>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="absolute top-3 right-3 bg-white/80 hover:bg-white"
-                  >
-                    <Heart className={`h-4 w-4 ${listing.isSaved ? 'fill-red-500 text-red-500' : ''}`} />
+        <TabsContent value={activeTab} className="mt-6">
+          {listings.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="space-y-3">
+                <RefreshCw className="h-12 w-12 text-muted-foreground mx-auto" />
+                <h3 className="text-lg font-medium">No listings found</h3>
+                <p className="text-muted-foreground max-w-md mx-auto">
+                  {!preferences 
+                    ? "Set up your search preferences to start receiving personalized apartment matches."
+                    : "Try adjusting your filters or check back later for new listings."
+                  }
+                </p>
+                {!preferences && (
+                  <Button asChild>
+                    <Link href="/dashboard/preferences">Set Preferences</Link>
                   </Button>
-                </div>
-                
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <CardTitle className="text-lg line-clamp-1">
-                        <Link 
-                          href={`/dashboard/listings/${listing.id}`}
-                          className="hover:underline"
+                )}
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Listings Grid */}
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {listings.map((match) => (
+                  <ListingCard 
+                    key={match.id || `match-${match.listing_id}`} 
+                    listing={match.listings!} 
+                    match={match}
+                    userId={user.id}
+                  />
+                ))}
+              </div>
+
+              {/* Pagination */}
+              {pagination.totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 mt-8">
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    disabled={pagination.page <= 1}
+                    asChild={pagination.page > 1}
+                  >
+                    {pagination.page > 1 ? (
+                      <Link href={`?page=${pagination.page - 1}&sortBy=${filters.sortBy}&tab=${activeTab}`}>
+                        <ChevronLeft className="h-4 w-4" />
+                      </Link>
+                    ) : (
+                      <ChevronLeft className="h-4 w-4" />
+                    )}
+                  </Button>
+                  
+                  <div className="flex gap-1">
+                    {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                      const pageNum = i + 1
+                      const isActive = pageNum === pagination.page
+                      
+                      return (
+                        <Button 
+                          key={pageNum}
+                          variant={isActive ? "default" : "outline"} 
+                          size="sm"
+                          asChild={!isActive}
                         >
-                          {listing.title}
-                        </Link>
-                      </CardTitle>
-                      <CardDescription className="flex items-center mt-1">
-                        <MapPin className="mr-1 h-3 w-3" />
-                        {listing.district} • {listing.address}
-                      </CardDescription>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold text-lg">€{listing.price}</div>
-                      <div className="text-xs text-muted-foreground">per month</div>
-                    </div>
-                  </div>
-                </CardHeader>
-                
-                <CardContent>
-                  <div className="flex items-center justify-between text-sm text-muted-foreground mb-4">
-                    <div className="flex items-center gap-3">
-                      <span className="flex items-center">
-                        <Home className="mr-1 h-3 w-3" />
-                        {listing.rooms} rooms
-                      </span>
-                      <span>{listing.size} m²</span>
-                    </div>
-                    <span className="flex items-center">
-                      <Calendar className="mr-1 h-3 w-3" />
-                      {new Date(listing.availableFrom).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </span>
+                          {isActive ? (
+                            pageNum
+                          ) : (
+                            <Link href={`?page=${pageNum}&sortBy=${filters.sortBy}&tab=${activeTab}`}>
+                              {pageNum}
+                            </Link>
+                          )}
+                        </Button>
+                      )
+                    })}
                   </div>
                   
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-xs">
-                        {listing.platform}
-                      </Badge>
-                      {listing.viewedAt && (
-                        <span className="text-xs text-muted-foreground flex items-center">
-                          <Eye className="mr-1 h-3 w-3" />
-                          Viewed
-                        </span>
-                      )}
-                    </div>
-                    <Button size="sm" asChild>
-                      <Link href={`/dashboard/listings/${listing.id}`}>
-                        View Details
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    disabled={pagination.page >= pagination.totalPages}
+                    asChild={pagination.page < pagination.totalPages}
+                  >
+                    {pagination.page < pagination.totalPages ? (
+                      <Link href={`?page=${pagination.page + 1}&sortBy=${filters.sortBy}&tab=${activeTab}`}>
+                        <ChevronRight className="h-4 w-4" />
                       </Link>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          {/* Pagination */}
-          <div className="flex items-center justify-center gap-2 mt-8">
-            <Button variant="outline" size="icon" disabled>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <div className="flex gap-1">
-              <Button variant="default" size="sm">1</Button>
-              <Button variant="outline" size="sm">2</Button>
-              <Button variant="outline" size="sm">3</Button>
-            </div>
-            <Button variant="outline" size="icon">
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="new" className="mt-6">
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">Showing only new listings...</p>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="saved" className="mt-6">
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">Showing only saved listings...</p>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="viewed" className="mt-6">
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">Showing only viewed listings...</p>
-          </div>
+                    ) : (
+                      <ChevronRight className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
         </TabsContent>
       </Tabs>
     </div>

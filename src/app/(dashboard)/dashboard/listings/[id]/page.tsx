@@ -1,10 +1,12 @@
+import { notFound } from "next/navigation"
+import { createClient } from '@/lib/supabase/server'
+import { requireAuth } from '@/lib/auth/utils'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Textarea } from "@/components/ui/textarea"
 import { 
   ArrowLeft,
   Calendar,
@@ -31,63 +33,106 @@ import {
   Sparkles,
   Send,
   FileText,
-  AlertCircle
+  AlertCircle,
+  Info
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 
-export default function ListingDetailPage({ params }: { params: { id: string } }) {
-  // TODO: Replace with real data from Supabase
-  const listing = {
-    id: params.id,
-    title: "Beautiful 2-room apartment in Prenzlauer Berg",
-    description: `Welcome to this charming 2-room apartment in the heart of Prenzlauer Berg! This recently renovated flat offers the perfect blend of modern comfort and classic Berlin charm.
+import { ApplySection } from "@/features/listings/components/apply-section"
+import { ListingDetailActions } from "@/features/listings/components/listing-detail-actions"
+import { ExternalLinkButton } from "@/features/listings/components/external-link-button"
 
-The apartment features high ceilings, original hardwood floors, and large windows that flood the space with natural light. The open-plan kitchen is fully equipped with modern appliances, including a dishwasher and induction stove.
-
-The bedroom is spacious and quiet, overlooking a peaceful courtyard. The bathroom has been recently renovated with a rain shower and heated floors.
-
-Located on a quiet side street, you're just minutes away from Mauerpark, countless cafes, restaurants, and boutique shops. The U2 line at Eberswalder Straße is only a 5-minute walk away.
-
-Perfect for professionals or couples looking for a stylish home in one of Berlin's most sought-after neighborhoods.`,
-    price: 1200,
-    warmRent: 1450,
-    deposit: 3600,
-    size: 65,
-    rooms: 2,
-    floor: 3,
-    totalFloors: 5,
-    availableFrom: "2024-02-01",
-    district: "Prenzlauer Berg",
-    address: "Stargarder Straße, 10437 Berlin",
-    latitude: 52.5492,
-    longitude: 13.4040,
-    propertyType: "Apartment",
-    yearBuilt: 1905,
-    energyClass: "C",
-    heatingType: "Central heating",
-    platform: "immoscout24",
-    externalUrl: "https://www.immoscout24.de/expose/123456789",
-    images: [
-      "/api/placeholder/800/600",
-      "/api/placeholder/800/600",
-      "/api/placeholder/800/600",
-      "/api/placeholder/800/600"
-    ],
-    amenities: {
-      kitchen: true,
+export default async function ListingDetailPage({ 
+  params 
+}: { 
+  params: Promise<{ id: string }> 
+}) {
+  const user = await requireAuth()
+  const supabase = await createClient()
+  const { id } = await params
+  
+  // Fetch the listing with match data
+  const { data: listing, error } = await supabase
+    .from('listings')
+    .select(`
+      *,
+      user_matches!inner(
+        match_score,
+        viewed_at,
+        saved_at
+      )
+    `)
+    .eq('id', id)
+    .eq('user_matches.user_id', user.id)
+    .single()
+    
+  if (error || !listing) {
+    notFound()
+  }
+  
+  // Check if user has applied
+  const { data: application } = await supabase
+    .from('applications')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('listing_id', id)
+    .single()
+    
+  const userHasApplied = !!application
+  const isSaved = !!listing.user_matches[0]?.saved_at
+  const matchScore = listing.user_matches[0]?.match_score || 0
+  
+  // Mark as viewed
+  if (!listing.user_matches[0]?.viewed_at) {
+    await supabase
+      .from('user_matches')
+      .update({ viewed_at: new Date().toISOString() })
+      .eq('user_id', user.id)
+      .eq('listing_id', id)
+  }
+  
+  // Format the listing data
+  const formattedListing = {
+    id: listing.id,
+    title: listing.title,
+    description: listing.description || 'No description available',
+    price: listing.price,
+    warmRent: listing.warm_rent || listing.price,
+    deposit: listing.deposit || listing.price * 3,
+    size: listing.size_sqm,
+    rooms: listing.rooms,
+    floor: listing.floor,
+    totalFloors: listing.total_floors,
+    availableFrom: listing.available_from,
+    availableTo: listing.available_to,
+    district: listing.district,
+    address: listing.address || `${listing.district}, Berlin`,
+    latitude: listing.latitude,
+    longitude: listing.longitude,
+    propertyType: listing.property_type || 'Apartment',
+    yearBuilt: listing.year_built,
+    energyClass: listing.energy_certificate?.energy_class,
+    heatingType: listing.energy_certificate?.heating_type || 'Not specified',
+    platform: listing.platform,
+    externalUrl: listing.url,
+    images: listing.images || [],
+    amenities: listing.amenities || {
+      kitchen: false,
       balcony: false,
       garden: false,
-      basement: true,
-      elevator: true,
+      basement: false,
+      elevator: false,
       parking: false,
-      furnished: false,
-      petsAllowed: "negotiable",
+      furnished: listing.furnished || false,
+      petsAllowed: listing.pets_allowed ? 'yes' : 'no',
       wgSuitable: false
     },
     contact: {
-      name: "Anna Schmidt",
-      company: "Berlin Property Management GmbH",
+      name: listing.contact_name || 'Contact via platform',
+      company: listing.contact_company,
+      email: listing.contact_email,
+      phone: listing.contact_phone,
       responseRate: 85,
       responseTime: "Usually within 24 hours"
     },
@@ -96,17 +141,14 @@ Perfect for professionals or couples looking for a stylish home in one of Berlin
       applications: 18,
       savedBy: 45
     },
-    matchScore: 95,
+    matchScore,
     matchReasons: [
       "Within your budget",
       "In your preferred district",
-      "Matches room count",
-      "Near public transport"
-    ]
+      ...(listing.rooms ? ["Matches room count"] : []),
+      ...(listing.amenities?.nearTransport ? ["Near public transport"] : [])
+    ].filter(Boolean)
   }
-
-  const userHasApplied = false // TODO: Check if user has applied
-  const isSaved = false // TODO: Check if user has saved
 
   return (
     <div className="container mx-auto p-6 max-w-7xl">
@@ -118,16 +160,11 @@ Perfect for professionals or couples looking for a stylish home in one of Berlin
             Back to listings
           </Link>
         </Button>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm">
-            <Share2 className="mr-2 h-4 w-4" />
-            Share
-          </Button>
-          <Button variant="outline" size="sm">
-            <Heart className={`mr-2 h-4 w-4 ${isSaved ? 'fill-current' : ''}`} />
-            Save
-          </Button>
-        </div>
+        <ListingDetailActions 
+          userId={user.id}
+          listingId={id}
+          initialSaved={isSaved}
+        />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -136,32 +173,42 @@ Perfect for professionals or couples looking for a stylish home in one of Berlin
           {/* Image Gallery */}
           <Card className="overflow-hidden">
             <div className="relative aspect-[4/3]">
-              <Image
-                src={listing.images[0]}
-                alt={listing.title}
-                fill
-                className="object-cover"
-              />
-              <div className="absolute bottom-4 right-4 flex gap-2">
-                <Badge className="bg-black/70 text-white">
-                  1 / {listing.images.length}
-                </Badge>
-              </div>
-            </div>
-            <div className="p-4">
-              <div className="grid grid-cols-4 gap-2">
-                {listing.images.slice(1).map((img, idx) => (
-                  <div key={idx} className="relative aspect-square cursor-pointer overflow-hidden rounded-md">
-                    <Image
-                      src={img}
-                      alt={`View ${idx + 2}`}
-                      fill
-                      className="object-cover hover:scale-110 transition-transform"
-                    />
+              {formattedListing.images.length > 0 ? (
+                <>
+                  <Image
+                    src={formattedListing.images[0]}
+                    alt={formattedListing.title}
+                    fill
+                    className="object-cover"
+                  />
+                  <div className="absolute bottom-4 right-4 flex gap-2">
+                    <Badge className="bg-black/70 text-white">
+                      1 / {formattedListing.images.length}
+                    </Badge>
                   </div>
-                ))}
-              </div>
+                </>
+              ) : (
+                <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                  <Home className="h-12 w-12 text-gray-400" />
+                </div>
+              )}
             </div>
+            {formattedListing.images.length > 1 && (
+              <div className="p-4">
+                <div className="grid grid-cols-4 gap-2">
+                  {formattedListing.images.slice(1).map((img, idx) => (
+                    <div key={idx} className="relative aspect-square cursor-pointer overflow-hidden rounded-md">
+                      <Image
+                        src={img}
+                        alt={`View ${idx + 2}`}
+                        fill
+                        className="object-cover hover:scale-110 transition-transform"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </Card>
 
           {/* Title and Key Info */}
@@ -169,46 +216,60 @@ Perfect for professionals or couples looking for a stylish home in one of Berlin
             <CardHeader>
               <div className="flex items-start justify-between">
                 <div>
-                  <CardTitle className="text-2xl">{listing.title}</CardTitle>
+                  <CardTitle className="text-2xl">{formattedListing.title}</CardTitle>
                   <CardDescription className="flex items-center mt-2">
                     <MapPin className="mr-1 h-4 w-4" />
-                    {listing.address}
+                    {formattedListing.address}
                   </CardDescription>
                 </div>
                 <div className="text-right">
-                  <div className="text-2xl font-bold">€{listing.price}</div>
-                  <div className="text-sm text-muted-foreground">Cold rent</div>
+                  <div className="text-2xl font-bold">€{formattedListing.warmRent || formattedListing.price}</div>
+                  <div className="text-sm text-muted-foreground">Warm rent</div>
                 </div>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="flex items-center gap-2">
                   <Home className="h-4 w-4 text-muted-foreground" />
                   <div>
-                    <div className="font-medium">{listing.rooms} Rooms</div>
+                    <div className="font-medium">{formattedListing.rooms || 'N/A'} Rooms</div>
                     <div className="text-sm text-muted-foreground">Living space</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Maximize className="h-4 w-4 text-muted-foreground" />
                   <div>
-                    <div className="font-medium">{listing.size} m²</div>
+                    <div className="font-medium">{formattedListing.size || 'N/A'} m²</div>
                     <div className="text-sm text-muted-foreground">Total area</div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Layers className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <div className="font-medium">{listing.floor}. Floor</div>
-                    <div className="text-sm text-muted-foreground">of {listing.totalFloors}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <div>
-                    <div className="font-medium">Feb 1, 2024</div>
-                    <div className="text-sm text-muted-foreground">Available</div>
+                    <div className="font-medium">
+                      {formattedListing.availableFrom 
+                        ? new Date(formattedListing.availableFrom).toLocaleDateString('en-US', { 
+                            month: 'short', 
+                            day: 'numeric', 
+                            year: 'numeric' 
+                          })
+                        : 'Available now'
+                      }
+                      {formattedListing.availableTo && (
+                        <span className="text-sm text-muted-foreground">
+                          {' - '}
+                          {new Date(formattedListing.availableTo).toLocaleDateString('en-US', { 
+                            month: 'short', 
+                            day: 'numeric', 
+                            year: 'numeric' 
+                          })}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {formattedListing.availableTo ? 'Temporary rental' : 'Available'}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -226,38 +287,38 @@ Perfect for professionals or couples looking for a stylish home in one of Berlin
                 </TabsList>
                 
                 <TabsContent value="description" className="space-y-4 mt-4">
-                  <div className="whitespace-pre-wrap">{listing.description}</div>
+                  <div className="whitespace-pre-wrap">{formattedListing.description}</div>
                   
                   <Separator />
                   
                   <div>
                     <h3 className="font-semibold mb-3">Amenities</h3>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                      {listing.amenities.kitchen && (
+                      {formattedListing.amenities.kitchen && (
                         <div className="flex items-center gap-2">
                           <Utensils className="h-4 w-4 text-green-600" />
                           <span className="text-sm">Fitted kitchen</span>
                         </div>
                       )}
-                      {listing.amenities.elevator && (
+                      {formattedListing.amenities.elevator && (
                         <div className="flex items-center gap-2">
                           <Building className="h-4 w-4 text-green-600" />
                           <span className="text-sm">Elevator</span>
                         </div>
                       )}
-                      {listing.amenities.basement && (
+                      {formattedListing.amenities.basement && (
                         <div className="flex items-center gap-2">
                           <Home className="h-4 w-4 text-green-600" />
                           <span className="text-sm">Basement</span>
                         </div>
                       )}
-                      {!listing.amenities.balcony && (
+                      {!formattedListing.amenities.balcony && (
                         <div className="flex items-center gap-2 opacity-50">
                           <Home className="h-4 w-4" />
                           <span className="text-sm">No balcony</span>
                         </div>
                       )}
-                      {!listing.amenities.parking && (
+                      {!formattedListing.amenities.parking && (
                         <div className="flex items-center gap-2 opacity-50">
                           <Car className="h-4 w-4" />
                           <span className="text-sm">No parking</span>
@@ -278,42 +339,73 @@ Perfect for professionals or couples looking for a stylish home in one of Berlin
                       <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Cold rent</span>
-                          <span>€{listing.price}</span>
+                          <span>€{formattedListing.price}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Utilities</span>
-                          <span>€{listing.warmRent - listing.price}</span>
+                          <span>€{formattedListing.warmRent - formattedListing.price}</span>
                         </div>
                         <Separator />
                         <div className="flex justify-between font-medium">
                           <span>Warm rent</span>
-                          <span>€{listing.warmRent}</span>
+                          <span>€{formattedListing.warmRent}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Deposit</span>
-                          <span>€{listing.deposit}</span>
+                          <span>€{formattedListing.deposit}</span>
                         </div>
                       </div>
                     </div>
                     
                     <div>
-                      <h4 className="font-medium mb-2">Building</h4>
+                      <h4 className="font-medium mb-2">Availability</h4>
                       <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
+                          <span className="text-muted-foreground">Available from</span>
+                          <span>
+                            {formattedListing.availableFrom 
+                              ? new Date(formattedListing.availableFrom).toLocaleDateString('en-US', { 
+                                  month: 'short', 
+                                  day: 'numeric', 
+                                  year: 'numeric' 
+                                })
+                              : 'Immediately'
+                            }
+                          </span>
+                        </div>
+                        {formattedListing.availableTo && (
+                          <>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Available until</span>
+                              <span>
+                                {new Date(formattedListing.availableTo).toLocaleDateString('en-US', { 
+                                  month: 'short', 
+                                  day: 'numeric', 
+                                  year: 'numeric' 
+                                })}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Rental type</span>
+                              <span className="text-orange-600 font-medium">Temporary</span>
+                            </div>
+                          </>
+                        )}
+                        <div className="flex justify-between">
                           <span className="text-muted-foreground">Type</span>
-                          <span>{listing.propertyType}</span>
+                          <span>{formattedListing.propertyType}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Year built</span>
-                          <span>{listing.yearBuilt}</span>
+                          <span>{formattedListing.yearBuilt || 'Not specified'}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Energy class</span>
-                          <span>{listing.energyClass}</span>
+                          <span>{formattedListing.energyClass || 'Not specified'}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Heating</span>
-                          <span>{listing.heatingType}</span>
+                          <span>{formattedListing.heatingType}</span>
                         </div>
                       </div>
                     </div>
@@ -326,7 +418,7 @@ Perfect for professionals or couples looking for a stylish home in one of Berlin
                     <span className="ml-2 text-muted-foreground">Map view coming soon</span>
                   </div>
                   <div className="mt-4 text-sm text-muted-foreground">
-                    <p>Located in {listing.district}, one of Berlin's most popular neighborhoods.</p>
+                    <p>Located in {formattedListing.district}, one of Berlin's most popular neighborhoods.</p>
                   </div>
                 </TabsContent>
               </Tabs>
@@ -341,13 +433,13 @@ Perfect for professionals or couples looking for a stylish home in one of Berlin
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-green-600" />
-                {listing.matchScore}% Match
+                {formattedListing.matchScore}% Match
               </CardTitle>
               <CardDescription>Based on your preferences</CardDescription>
             </CardHeader>
             <CardContent>
               <ul className="space-y-2">
-                {listing.matchReasons.map((reason, idx) => (
+                {formattedListing.matchReasons.map((reason, idx) => (
                   <li key={idx} className="flex items-center gap-2 text-sm">
                     <CheckCircle className="h-4 w-4 text-green-600" />
                     {reason}
@@ -358,49 +450,17 @@ Perfect for professionals or couples looking for a stylish home in one of Berlin
           </Card>
 
           {/* Apply Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Apply for this apartment</CardTitle>
-              <CardDescription>
-                {userHasApplied 
-                  ? "You've already applied"
-                  : "Send your application to the landlord"
-                }
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {!userHasApplied ? (
-                <>
-                  <Textarea
-                    placeholder="Write a personal message to the landlord..."
-                    className="min-h-[120px]"
-                  />
-                  <div className="flex gap-2">
-                    <Button variant="outline" className="flex-1">
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      Generate with AI
-                    </Button>
-                    <Button variant="outline">
-                      <FileText className="mr-2 h-4 w-4" />
-                      Add CV
-                    </Button>
-                  </div>
-                  <Button className="w-full">
-                    <Send className="mr-2 h-4 w-4" />
-                    Send Application
-                  </Button>
-                </>
-              ) : (
-                <div className="text-center py-4">
-                  <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-2" />
-                  <p className="font-medium">Application sent!</p>
-                  <p className="text-sm text-muted-foreground">
-                    Applied on Jan 15, 2024
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <ApplySection 
+            listingId={formattedListing.id} 
+            listingDetails={{
+              title: formattedListing.title,
+              district: formattedListing.district,
+              price: formattedListing.price,
+              warmRent: formattedListing.warmRent,
+              propertyType: formattedListing.propertyType,
+              rooms: formattedListing.rooms
+            }}
+          />
 
           {/* Contact Info */}
           <Card>
@@ -410,32 +470,58 @@ Perfect for professionals or couples looking for a stylish home in one of Berlin
             <CardContent className="space-y-4">
               <div className="flex items-center gap-3">
                 <Avatar>
-                  <AvatarFallback>{listing.contact.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                  <AvatarFallback>
+                    {formattedListing.contact.name
+                      .split(' ')
+                      .map(n => n[0])
+                      .join('')}
+                  </AvatarFallback>
                 </Avatar>
                 <div>
-                  <div className="font-medium">{listing.contact.name}</div>
-                  <div className="text-sm text-muted-foreground">{listing.contact.company}</div>
+                  <div className="font-medium">{formattedListing.contact.name}</div>
+                  <div className="text-sm text-muted-foreground">{formattedListing.contact.company}</div>
                 </div>
               </div>
               
               <div className="space-y-2 text-sm">
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-muted-foreground" />
-                  <span>{listing.contact.responseTime}</span>
+                  <span>{formattedListing.contact.responseTime}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle className="h-4 w-4 text-muted-foreground" />
-                  <span>{listing.contact.responseRate}% response rate</span>
+                  <span>{formattedListing.contact.responseRate}% response rate</span>
                 </div>
               </div>
 
               <Separator />
 
-              <div className="flex items-center gap-2 text-sm">
-                <AlertCircle className="h-4 w-4 text-yellow-600" />
-                <span className="text-muted-foreground">
-                  Contact through the platform only
-                </span>
+              {/* Contact Details */}
+              <div className="space-y-2">
+                {formattedListing.contact.phone && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <Phone className="h-4 w-4 text-green-600" />
+                    <span className="font-medium text-green-600">
+                      {formattedListing.contact.phone}
+                    </span>
+                  </div>
+                )}
+                {formattedListing.contact.email && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <Mail className="h-4 w-4 text-blue-600" />
+                    <span className="font-medium text-blue-600">
+                      {formattedListing.contact.email}
+                    </span>
+                  </div>
+                )}
+                {!formattedListing.contact.phone && !formattedListing.contact.email && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <AlertCircle className="h-4 w-4 text-yellow-600" />
+                    <span className="text-muted-foreground">
+                      Contact through the platform only
+                    </span>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -449,15 +535,15 @@ Perfect for professionals or couples looking for a stylish home in one of Berlin
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Views</span>
-                  <span className="font-medium">{listing.stats.views}</span>
+                  <span className="font-medium">{formattedListing.stats.views}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Applications</span>
-                  <span className="font-medium">{listing.stats.applications}</span>
+                  <span className="font-medium">{formattedListing.stats.applications}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Saved by</span>
-                  <span className="font-medium">{listing.stats.savedBy} people</span>
+                  <span className="font-medium">{formattedListing.stats.savedBy} people</span>
                 </div>
               </div>
               
@@ -471,12 +557,10 @@ Perfect for professionals or couples looking for a stylish home in one of Berlin
           </Card>
 
           {/* Platform Link */}
-          <Button variant="outline" className="w-full" asChild>
-            <a href={listing.externalUrl} target="_blank" rel="noopener noreferrer">
-              View on {listing.platform}
-              <ArrowLeft className="ml-2 h-4 w-4 rotate-180" />
-            </a>
-          </Button>
+          <ExternalLinkButton 
+            url={formattedListing.externalUrl}
+            platform={formattedListing.platform}
+          />
         </div>
       </div>
     </div>

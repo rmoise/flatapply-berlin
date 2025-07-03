@@ -1,0 +1,88 @@
+services:
+  n8n:
+    image: n8nio/n8n
+    container_name: n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      # Basic config
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+      - WEBHOOK_URL=http://localhost:5678/
+      
+      # Security
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=flatapply2024
+      
+      # Database (using SQLite, but can switch to Postgres)
+      - DB_TYPE=sqlite
+      
+      # Executions
+      - EXECUTIONS_PROCESS=main
+      - EXECUTIONS_TIMEOUT=3600
+      - EXECUTIONS_TIMEOUT_MAX=7200
+      
+      # Community nodes
+      - N8N_COMMUNITY_EDITION_ALLOW_CUSTOM_NODES=true
+      
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./n8n-workflows:/home/node/workflows
+      - ./n8n-files:/files
+    networks:
+      - n8n-network
+
+  # Optional: PostgreSQL for n8n (more reliable than SQLite)
+  n8n-postgres:
+    image: postgres:15
+    container_name: n8n-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=n8n
+      - POSTGRES_PASSWORD=n8n_pass_2024
+      - POSTGRES_DB=n8n
+    volumes:
+      - n8n_postgres_data:/var/lib/postgresql/data
+    networks:
+      - n8n-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U n8n"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Optional: n8n with Puppeteer support
+  n8n-puppeteer:
+    build:
+      context: .
+      dockerfile: Dockerfile.n8n-puppeteer
+    container_name: n8n-puppeteer
+    restart: unless-stopped
+    ports:
+      - "5679:5678"
+    environment:
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=flatapply2024
+    volumes:
+      - n8n_puppeteer_data:/home/node/.n8n
+      - ./n8n-workflows:/home/node/workflows
+    networks:
+      - n8n-network
+
+volumes:
+  n8n_data:
+  n8n_postgres_data:
+  n8n_puppeteer_data:
+
+networks:
+  n8n-network:
+    driver: bridge

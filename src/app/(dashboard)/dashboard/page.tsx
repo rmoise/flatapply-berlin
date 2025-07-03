@@ -249,7 +249,7 @@ export default function DashboardPage() {
               <Button variant="outline" className="justify-start" asChild>
                 <Link href="/dashboard/documents">
                   <FileText className="mr-2 h-4 w-4" />
-                  Upload Documents
+                  Manage Documents
                 </Link>
               </Button>
               <Button variant="outline" className="justify-start" asChild>

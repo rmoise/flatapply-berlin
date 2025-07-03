@@ -1,0 +1,97 @@
+{
+  "name": "WG-Gesucht Scraper",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "name": "Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "command": "cd /path/to/flatapply-berlin && npm run scrape:wg-gesucht"
+      },
+      "name": "Run Scraper",
+      "type": "n8n-nodes-base.executeCommand",
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": "public",
+        "table": "listings",
+        "returnAll": true,
+        "where": {
+          "conditions": [
+            {
+              "column": "created_at",
+              "condition": ">",
+              "value": "={{$now.minus(30, 'minutes').toISO()}}"
+            }
+          ]
+        }
+      },
+      "name": "Get New Listings",
+      "type": "n8n-nodes-base.supabase",
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$json.price}}",
+              "operation": "<=",
+              "value2": 1500
+            }
+          ],
+          "string": [
+            {
+              "value1": "={{$json.district}}",
+              "operation": "contains",
+              "value2": "{{$node['User Preferences'].json.preferred_districts}}"
+            }
+          ]
+        }
+      },
+      "name": "Filter Matches",
+      "type": "n8n-nodes-base.filter",
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "to": "={{$node['User Preferences'].json.email}}",
+        "subject": "New WG-Gesucht Match!",
+        "html": "New listing: {{$json.title}}<br>Price: €{{$json.price}}<br>District: {{$json.district}}<br><a href='{{$json.url}}'>View Listing</a>"
+      },
+      "name": "Send Email",
+      "type": "n8n-nodes-base.emailSend",
+      "position": [1050, 300]
+    }
+  ],
+  "connections": {
+    "Schedule": {
+      "main": [[{"node": "Run Scraper"}]]
+    },
+    "Run Scraper": {
+      "main": [[{"node": "Get New Listings"}]]
+    },
+    "Get New Listings": {
+      "main": [[{"node": "Filter Matches"}]]
+    },
+    "Filter Matches": {
+      "main": [[{"node": "Send Email"}]]
+    }
+  }
+}
