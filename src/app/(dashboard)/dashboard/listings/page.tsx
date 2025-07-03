@@ -17,7 +17,8 @@ import {
   Clock,
   ChevronLeft,
   ChevronRight,
-  SlidersHorizontal
+  SlidersHorizontal,
+  RefreshCw
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"

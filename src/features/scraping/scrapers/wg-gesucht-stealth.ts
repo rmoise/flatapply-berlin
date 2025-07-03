@@ -813,6 +813,27 @@ export class WGGesuchtStealthScraper {
     console.log(`🔍 Scraping details from: ${url}`);
     
     try {
+      // Set up response listener to capture phone data from AJAX
+      let capturedPhoneData: any = null;
+      page.on('response', async (response) => {
+        const url = response.url();
+        // Look for phone-related AJAX endpoints
+        if (url.includes('phone') || url.includes('contact') || url.includes('telefon')) {
+          try {
+            const contentType = response.headers()['content-type'] || '';
+            if (contentType.includes('json')) {
+              const data = await response.json().catch(() => null);
+              if (data && (data.phone || data.mobile || data.telephone || data.handy)) {
+                capturedPhoneData = data;
+                console.log('📞 Captured phone data from AJAX:', data);
+              }
+            }
+          } catch (e) {
+            // Ignore errors in response parsing
+          }
+        }
+      });
+      
       // Block ads before navigation
       await page.route('**/*', (route) => {
         const url = route.request().url();
@@ -1343,6 +1364,116 @@ export class WGGesuchtStealthScraper {
         
         if (contactName) result.contactName = contactName;
         
+        // Try to extract phone number from JavaScript data without clicking
+        // Similar to how we extract image gallery data
+        var phoneNumber = null;
+        
+        // Method 1: Check for phone data in window object
+        if (window.contactData && window.contactData.phone) {
+          phoneNumber = window.contactData.phone;
+        }
+        
+        // Method 2: Look for phone in data attributes
+        if (!phoneNumber) {
+          var phoneButton = document.querySelector('button[data-phone], a[data-phone], [data-tel]');
+          if (phoneButton) {
+            phoneNumber = phoneButton.getAttribute('data-phone') || phoneButton.getAttribute('data-tel');
+          }
+        }
+        
+        // Method 3: Check for phone in onclick handlers or JavaScript
+        if (!phoneNumber) {
+          var showPhoneElements = document.querySelectorAll('[onclick*="phone"], [onclick*="tel"], [onclick*="handy"]');
+          showPhoneElements.forEach(function(el) {
+            var onclickText = el.getAttribute('onclick') || '';
+            var phoneMatch = onclickText.match(/['"](\+?[\d\s\-\/]+)['"]/);
+            if (phoneMatch && phoneMatch[1].length > 8) {
+              phoneNumber = phoneMatch[1].trim();
+            }
+          });
+        }
+        
+        // Method 4: Search in script tags for phone data
+        if (!phoneNumber) {
+          var scripts = document.querySelectorAll('script');
+          for (var i = 0; i < scripts.length; i++) {
+            var scriptText = scripts[i].textContent || '';
+            // Look for patterns like phone: "01234567" or mobile: "01234567"
+            var phonePatterns = [
+              /["'](?:phone|mobile|handy|telefon)["']\s*:\s*["'](\+?[\d\s\-\/]+)["']/i,
+              /["']tel["']\s*:\s*["'](\+?[\d\s\-\/]+)["']/i,
+              /contact_phone["']\s*:\s*["'](\+?[\d\s\-\/]+)["']/i
+            ];
+            
+            for (var j = 0; j < phonePatterns.length; j++) {
+              var match = scriptText.match(phonePatterns[j]);
+              if (match && match[1] && match[1].length > 8) {
+                phoneNumber = match[1].trim();
+                break;
+              }
+            }
+            if (phoneNumber) break;
+          }
+        }
+        
+        // Method 5: Check AJAX endpoint URLs that might contain phone data
+        if (!phoneNumber) {
+          var ajaxLinks = document.querySelectorAll('a[href*="show_phone"], a[href*="contact_phone"], [data-ajax*="phone"]');
+          ajaxLinks.forEach(function(link) {
+            var href = link.getAttribute('href') || link.getAttribute('data-ajax') || '';
+            // Sometimes phone is encoded in the URL
+            var urlPhoneMatch = href.match(/phone=(\+?[\d\s\-\/]+)/);
+            if (urlPhoneMatch) {
+              phoneNumber = decodeURIComponent(urlPhoneMatch[1]);
+            }
+          });
+        }
+        
+        // Method 6: Note - #phone_numbers_modal is typically hidden until button is clicked
+        // So we can't extract phone from it without clicking the button first
+        // Just note if the modal exists in the DOM
+        if (!phoneNumber) {
+          var phoneModal = document.querySelector('#phone_numbers_modal');
+          if (phoneModal) {
+            console.log('Phone modal found in DOM but likely hidden until clicked');
+            // Store the user_id and asset_id for potential AJAX request
+            result.phoneModalData = {
+              userId: phoneModal.getAttribute('data-user_id'),
+              assetId: phoneModal.getAttribute('data-asset_id'),
+              assetType: phoneModal.getAttribute('data-asset_type'),
+              modalExists: true
+            };
+          }
+        }
+        
+        // Method 7: Look for phone button with data attributes that might reveal the endpoint
+        if (!phoneNumber) {
+          var phoneButtons = document.querySelectorAll('button[class*="phone"], a[class*="phone"], .contact_box_footer_button');
+          phoneButtons.forEach(function(button) {
+            // Check data attributes
+            var dataAttrs = button.dataset;
+            for (var key in dataAttrs) {
+              if (dataAttrs[key] && dataAttrs[key].match(/^\+?[\d\s\-\/]+$/) && dataAttrs[key].length > 8) {
+                phoneNumber = dataAttrs[key].trim();
+                break;
+              }
+            }
+            
+            // Check if button has user/asset IDs for AJAX
+            if (!phoneNumber && button.getAttribute('data-user_id')) {
+              result.phoneButtonData = {
+                userId: button.getAttribute('data-user_id'),
+                assetId: button.getAttribute('data-asset_id'),
+                assetType: button.getAttribute('data-asset_type')
+              };
+            }
+          });
+        }
+        
+        if (phoneNumber) {
+          result.contactPhone = phoneNumber;
+        }
+        
         // Extract amenities - comprehensive extraction
         var amenities = {};
         
@@ -1594,13 +1725,154 @@ export class WGGesuchtStealthScraper {
       };
       
       // Update contact info if available
-      if (details.contactName) {
+      if (details.contactName || details.contactPhone) {
         enrichedListing.contact = {};
-        enrichedListing.contact.name = details.contactName;
-        enrichedListing.contact.phone = null;
+        enrichedListing.contact.name = details.contactName || null;
+        enrichedListing.contact.phone = details.contactPhone || null;
         enrichedListing.contact.email = null;
         enrichedListing.contact.company = null;
         enrichedListing.contact.isAgent = false;
+      }
+      
+      // If we found a phone number from JavaScript/data attributes, log it
+      if (details.contactPhone) {
+        console.log('📞 Phone number extracted from page data:', details.contactPhone);
+      }
+      
+      // Check if we captured phone data from AJAX responses
+      if (!details.contactPhone && capturedPhoneData) {
+        const phone = capturedPhoneData.mobile || capturedPhoneData.handy || 
+                      capturedPhoneData.phone || capturedPhoneData.telephone;
+        if (phone) {
+          if (!enrichedListing.contact) {
+            enrichedListing.contact = {};
+          }
+          enrichedListing.contact.phone = phone;
+          console.log('📞 Phone number extracted from AJAX response:', phone);
+        }
+      }
+      
+      // Try to extract phone number by clicking button if we're logged in and didn't find it yet
+      if (!details.contactPhone && !enrichedListing.contact?.phone) {
+        try {
+          // Check if we're logged in by looking for user menu or logout button
+          const isLoggedIn = await page.evaluate(() => {
+            return !!(document.querySelector('.logout_button, .user_menu, a[href*="logout"]'));
+          });
+          
+          if (isLoggedIn) {
+            // Check if modal exists in DOM (it's usually hidden until clicked)
+            const modalExists = await page.$('#phone_numbers_modal') !== null;
+            
+            // Look for "Telefonnummer anzeigen" button
+            const phoneButton = await page.locator('button, a').filter({ hasText: 'Telefonnummer anzeigen' }).first();
+            const phoneButtonExists = await phoneButton.count() > 0;
+            
+            if (phoneButtonExists) {
+              console.log('📞 Found phone number button, clicking...');
+              
+              // Click the button to open the modal or trigger data loading
+              // Use force:true to click even if aria-hidden
+              try {
+                await phoneButton.click({ force: true });
+              } catch (clickError) {
+                console.log('⚠️ Force click failed, trying JavaScript click...');
+                // Fallback: click using JavaScript
+                await page.evaluate(() => {
+                  const btn = Array.from(document.querySelectorAll('button, a')).find(el => 
+                    el.textContent && el.textContent.includes('Telefonnummer anzeigen')
+                  );
+                  if (btn) (btn as HTMLElement).click();
+                });
+              }
+              
+              // Wait for modal to become visible (Bootstrap modal animation)
+              await page.waitForSelector('#phone_numbers_modal.show, #phone_numbers_modal[style*="display: block"]', { timeout: 5000 });
+              
+              // Wait for any loading spinners to disappear
+              await page.waitForFunction(() => {
+                const modal = document.querySelector('#phone_numbers_modal');
+                if (!modal) return false;
+                const spinner = modal.querySelector('.spinner, .loading, [class*="spinner"], [class*="loading"]');
+                return !spinner;
+              }, { timeout: 10000 }).catch(() => {
+                console.log('⚠️ Timeout waiting for spinner to disappear');
+              });
+              
+              // Small delay for data to fully load
+              await this.humanDelay(1000, 2000);
+              
+              // Extract phone numbers from the now-visible modal
+              const phoneData = await page.evaluate(() => {
+                const result: any = {};
+                
+                // Look for the visible modal
+                const modal = document.querySelector('#phone_numbers_modal.show, #phone_numbers_modal[style*="display: block"]');
+                if (!modal) {
+                  console.log('Modal not visible after click');
+                  return result;
+                }
+                
+                // Look for mobile number
+                const mobileEl = modal.querySelector('.mobile_number');
+                if (mobileEl && mobileEl.textContent) {
+                  result.mobile = mobileEl.textContent.trim();
+                }
+                
+                // Look for landline number
+                const phoneEl = modal.querySelector('.telephone_number');
+                if (phoneEl && phoneEl.textContent) {
+                  result.landline = phoneEl.textContent.trim();
+                }
+                
+                // Fallback: look for any phone number in the modal
+                if (!result.mobile && !result.landline) {
+                  const modalBody = modal.querySelector('.modal-body');
+                  if (modalBody) {
+                    const text = modalBody.textContent || '';
+                    // Match German phone formats
+                    const phoneMatches = text.match(/(?:\+49|0)[\d\s\-\/]+\d/g);
+                    if (phoneMatches && phoneMatches.length > 0) {
+                      result.phone = phoneMatches[0].replace(/\s+/g, '').trim();
+                    }
+                  }
+                }
+                
+                return result;
+              });
+              
+              // Update contact info with phone numbers
+              if (phoneData) {
+                if (!enrichedListing.contact) {
+                  enrichedListing.contact = {};
+                }
+                
+                // Prefer mobile over landline
+                if (phoneData.mobile) {
+                  enrichedListing.contact.phone = phoneData.mobile;
+                } else if (phoneData.landline) {
+                  enrichedListing.contact.phone = phoneData.landline;
+                } else if (phoneData.phone) {
+                  enrichedListing.contact.phone = phoneData.phone;
+                }
+                
+                console.log('✅ Phone number extracted from modal:', enrichedListing.contact.phone);
+              }
+              
+              // Close the modal if it's still open
+              const closeButton = await page.$('.modal-dialog .close, .modal-header button[data-dismiss="modal"]');
+              if (closeButton) {
+                await closeButton.click();
+                await this.humanDelay(300, 500);
+              }
+            }
+          } else {
+            console.log('📞 Not logged in, skipping phone button click');
+          }
+        } catch (error) {
+          console.log('📞 Could not extract phone number from modal:', error.message);
+          // Continue without phone - it's optional
+        }
       }
       
       // Add WG details to amenities (flat structure)
