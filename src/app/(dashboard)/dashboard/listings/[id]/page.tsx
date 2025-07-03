@@ -257,8 +257,8 @@ export default async function ListingDetailPage({
                     <Building2 className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <div className="font-medium">
-                        {formattedListing.floor}{formattedListing.floor === 0 ? ' (Ground)' : ''}
-                        {formattedListing.totalFloors ? `/${formattedListing.totalFloors}` : ''} floor
+                        {formattedListing.floor === 0 ? 'Ground' : formattedListing.floor}
+                        {formattedListing.totalFloors ? ` of ${formattedListing.totalFloors}` : ''}
                       </div>
                       <div className="text-sm text-muted-foreground">Floor level</div>
                     </div>

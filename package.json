@@ -12,6 +12,7 @@
     "test:system": "tsx scripts/test-full-system.ts",
     "test:single": "tsx scripts/test-single-listing.ts",
     "scraper:stealth": "tsx scripts/save-listings-to-db.ts",
+    "scraper:login": "tsx scripts/wg-gesucht-login.ts",
     "orchestrator:start": "tsx scripts/start-orchestrator.ts",
     "orchestrator:stop": "tsx scripts/stop-orchestrator.ts",
     "orchestrator:health": "tsx scripts/health-check.ts",
