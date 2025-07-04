@@ -5,7 +5,7 @@ import { ROUTES } from '@/lib/constants'
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? ROUTES.DASHBOARD
+  const next = searchParams.get('next') ?? ROUTES.HOME
 
   if (code) {
     const supabase = await createClient()

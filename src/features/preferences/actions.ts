@@ -53,7 +53,7 @@ export async function getUserPreferences(userId: string) {
   }
 }
 
-export async function updateUserPreferences(userId: string, preferences: PreferencesFormData) {
+export async function updateUserPreferences(userId: string, preferences: PreferencesFormData, skipRevalidation = false) {
   const supabase = await createClient();
 
   try {
@@ -95,8 +95,11 @@ export async function updateUserPreferences(userId: string, preferences: Prefere
       await triggerReMatching(userId);
     }
 
-    revalidatePath('/dashboard/preferences');
-    revalidatePath('/dashboard/listings');
+    // Skip revalidation for autosave to prevent infinite loops
+    if (!skipRevalidation) {
+      revalidatePath('/dashboard/preferences');
+      revalidatePath('/dashboard/listings');
+    }
     
     return {
       success: true,

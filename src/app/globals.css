@@ -77,3 +77,9 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer components {
+  .container {
+    @apply mx-auto w-full max-w-7xl;
+  }
+}

@@ -7,11 +7,11 @@ export default async function AuthLayout({
 }: {
   children: React.ReactNode
 }) {
-  // Redirect to dashboard if already logged in
+  // Redirect to home if already logged in
   const user = await getUser()
   
   if (user) {
-    redirect(ROUTES.DASHBOARD)
+    redirect(ROUTES.HOME)
   }
 
   return (

@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 
 interface ExternalLinkButtonProps {
   url: string;
@@ -43,8 +43,8 @@ export function ExternalLinkButton({ url, platform }: ExternalLinkButtonProps) {
       className="w-full" 
       onClick={handleClick}
     >
+      <ExternalLink className="mr-2 h-4 w-4" />
       View on {getPlatformName()}
-      <ArrowLeft className="ml-2 h-4 w-4 rotate-180" />
     </Button>
   );
 }

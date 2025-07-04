@@ -1,8 +1,6 @@
 import { redirect } from "next/navigation"
-import { DashboardNav } from "@/components/layout/dashboard-nav"
-import { DashboardHeader } from "@/components/layout/dashboard-header"
 import { getUser } from "@/lib/auth/utils"
-import { getSidebarPreference } from "@/features/dashboard/actions"
+import { MainNav } from "@/components/layout/main-nav"
 
 export default async function DashboardLayout({
   children,
@@ -15,20 +13,15 @@ export default async function DashboardLayout({
     redirect("/login")
   }
 
-  const isCollapsed = await getSidebarPreference()
-
   return (
-    <div className="min-h-screen flex bg-background">
-      {/* Sidebar */}
-      <DashboardNav initialCollapsed={isCollapsed} />
+    <div className="min-h-screen flex flex-col">
+      {/* Main Navigation */}
+      <MainNav user={user} />
       
       {/* Main content */}
-      <div className="flex-1 flex flex-col min-h-screen">
-        <DashboardHeader user={user} />
-        <main className="flex-1 overflow-y-auto bg-muted/30">
-          {children}
-        </main>
-      </div>
+      <main className="flex-1 bg-background">
+        {children}
+      </main>
     </div>
   )
 }

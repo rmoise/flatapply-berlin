@@ -14,6 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Bell, User as UserIcon, Settings, LogOut, CreditCard } from "lucide-react"
 import Link from "next/link"
+import { logout } from "@/features/auth/actions"
 
 interface DashboardHeaderProps {
   user: User
@@ -88,7 +89,7 @@ export function DashboardHeader({ user }: DashboardHeaderProps) {
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <form action="/api/auth/logout" method="POST" className="w-full">
+              <form action={logout} className="w-full">
                 <button type="submit" className="flex w-full cursor-pointer items-center">
                   <LogOut className="mr-2 h-4 w-4" />
                   Log out

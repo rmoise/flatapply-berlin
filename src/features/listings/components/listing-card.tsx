@@ -161,7 +161,7 @@ export function ListingCard({ listing, match, userId }: ListingCardProps) {
           <div className="flex-1">
             <CardTitle className="text-lg line-clamp-2">
               <Link 
-                href={`/dashboard/listings/${listing.id}`}
+                href={`/listings/${listing.id}`}
                 className="hover:underline"
                 onClick={handleView}
               >
@@ -214,7 +214,7 @@ export function ListingCard({ listing, match, userId }: ListingCardProps) {
             )}
           </div>
           <Button size="sm" asChild onClick={handleView}>
-            <Link href={`/dashboard/listings/${listing.id}`}>
+            <Link href={`/listings/${listing.id}`}>
               View Details
             </Link>
           </Button>

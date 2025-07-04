@@ -9,69 +9,67 @@ import { headers } from 'next/headers'
 
 // Email/Password login
 export async function loginWithEmail(formData: FormData) {
-  return withErrorHandling(async () => {
-    const validatedData = loginSchema.parse({
-      email: formData.get('email'),
-      password: formData.get('password'),
-    })
-
-    const supabase = await createClient()
-    
-    const { error } = await supabase.auth.signInWithPassword({
-      email: validatedData.email,
-      password: validatedData.password,
-    })
-
-    if (error) {
-      throw error
-    }
-
-    redirect(ROUTES.DASHBOARD)
+  const validatedData = loginSchema.parse({
+    email: formData.get('email'),
+    password: formData.get('password'),
   })
+
+  const supabase = await createClient()
+  
+  const { error } = await supabase.auth.signInWithPassword({
+    email: validatedData.email,
+    password: validatedData.password,
+  })
+
+  if (error) {
+    return { success: false, error: error.message }
+  }
+
+  // Redirect outside of try-catch to avoid catching NEXT_REDIRECT
+  redirect(ROUTES.HOME)
 }
 
 // Email/Password signup
 export async function signupWithEmail(formData: FormData) {
-  return withErrorHandling(async () => {
-    const validatedData = signupSchema.parse({
-      email: formData.get('email'),
-      password: formData.get('password'),
-      full_name: formData.get('full_name'),
-    })
-
-    const supabase = await createClient()
-    
-    const { data, error } = await supabase.auth.signUp({
-      email: validatedData.email,
-      password: validatedData.password,
-      options: {
-        data: {
-          full_name: validatedData.full_name,
-        },
-      },
-    })
-
-    if (error) {
-      throw error
-    }
-
-    // Create profile record
-    if (data.user) {
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          id: data.user.id,
-          email: data.user.email!,
-          full_name: validatedData.full_name,
-        })
-
-      if (profileError) {
-        throw profileError
-      }
-    }
-
-    redirect(ROUTES.DASHBOARD)
+  const validatedData = signupSchema.parse({
+    email: formData.get('email'),
+    password: formData.get('password'),
+    full_name: formData.get('full_name'),
   })
+
+  const supabase = await createClient()
+  
+  const { data, error } = await supabase.auth.signUp({
+    email: validatedData.email,
+    password: validatedData.password,
+    options: {
+      data: {
+        full_name: validatedData.full_name,
+      },
+    },
+  })
+
+  if (error) {
+    return { success: false, error: error.message }
+  }
+
+  // Create profile record
+  if (data.user) {
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .insert({
+        id: data.user.id,
+        email: data.user.email!,
+        full_name: validatedData.full_name,
+      })
+
+    if (profileError) {
+      return { success: false, error: profileError.message }
+    }
+  }
+
+  // Redirect outside of try-catch to avoid catching NEXT_REDIRECT
+  redirect(ROUTES.HOME)
 }
 
 // OAuth login (Google, etc.)
@@ -110,5 +108,6 @@ export async function logout() {
     throw error
   }
   
-  redirect(ROUTES.HOME)
+  // Redirect to home without any URL parameters
+  redirect('/')
 }

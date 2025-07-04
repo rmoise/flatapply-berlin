@@ -78,7 +78,7 @@ export async function saveScrapedListings(rawListings: any[]) {
     // Create matches for all active users
     await createMatchesForNewListings(insertedListings || []);
 
-    revalidatePath('/dashboard/listings');
+    revalidatePath('/');
     
     return {
       success: true,
@@ -95,16 +95,161 @@ export async function saveScrapedListings(rawListings: any[]) {
   }
 }
 
+export async function getPublicListings(filters: ListingFilters = {}) {
+  const supabase = await createClient();
+
+  try {
+    console.log('🔍 getPublicListings called with filters:', JSON.stringify(filters, null, 2));
+    
+    let query = supabase
+      .from('listings')
+      .select(`
+        id,
+        platform,
+        external_id,
+        url,
+        title,
+        description,
+        price,
+        warm_rent,
+        size_sqm,
+        rooms,
+        floor,
+        available_from,
+        district,
+        address,
+        property_type,
+        images,
+        amenities,
+        wg_size,
+        scraped_at,
+        is_active
+      `)
+      .eq('is_active', true)
+      .is('deactivated_at', null);
+
+    // Apply filters following Context7 documentation patterns
+    // Each filter method call is implicitly ANDed together
+    
+    // Price filtering: Use warm_rent if available, fallback to price if warm_rent is null
+    if (filters.minRent && filters.maxRent) {
+      // Both min and max - need OR logic to handle warm_rent vs price
+      query = query.or(`and(warm_rent.gte.${filters.minRent},warm_rent.lte.${filters.maxRent}),and(warm_rent.is.null,price.gte.${filters.minRent},price.lte.${filters.maxRent})`);
+    } else if (filters.minRent) {
+      query = query.or(`warm_rent.gte.${filters.minRent},and(warm_rent.is.null,price.gte.${filters.minRent})`);
+    } else if (filters.maxRent) {
+      query = query.or(`warm_rent.lte.${filters.maxRent},and(warm_rent.is.null,price.lte.${filters.maxRent})`);
+    }
+    
+    // Room filters - separate calls are ANDed together
+    if (filters.minRooms) {
+      query = query.gte('rooms', filters.minRooms);
+    }
+    if (filters.maxRooms) {
+      query = query.lte('rooms', filters.maxRooms);
+    }
+    
+    // Size filters
+    if (filters.minSize) {
+      query = query.gte('size_sqm', filters.minSize);
+    }
+    if (filters.maxSize) {
+      query = query.lte('size_sqm', filters.maxSize);
+    }
+    
+    // District filter
+    if (filters.districts && filters.districts.length > 0) {
+      query = query.in('district', filters.districts);
+    }
+
+    // Apply sorting
+    switch (filters.sortBy) {
+      case 'price_asc':
+        query = query.order('warm_rent', { ascending: true, nullsFirst: false });
+        break;
+      case 'price_desc':
+        query = query.order('warm_rent', { ascending: false, nullsFirst: false });
+        break;
+      case 'size_asc':
+        query = query.order('size_sqm', { ascending: true });
+        break;
+      case 'size_desc':
+        query = query.order('size_sqm', { ascending: false });
+        break;
+      case 'newest':
+      default:
+        query = query.order('scraped_at', { ascending: false });
+        break;
+    }
+
+    // Apply pagination
+    const page = filters.page || 1;
+    const limit = filters.limit || 20;
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+
+    query = query.range(from, to);
+
+    const { data: listings, error } = await query;
+
+    if (error) {
+      console.error('Error fetching public listings:', error);
+      throw error;
+    }
+
+    console.log(`🎯 Query returned ${listings?.length || 0} listings`);
+
+    // Get total count for pagination
+    const { count } = await supabase
+      .from('listings')
+      .select('*', { count: 'exact', head: true })
+      .eq('is_active', true)
+      .is('deactivated_at', null);
+
+
+
+    return {
+      success: true,
+      listings: listings || [],
+      pagination: {
+        page,
+        limit,
+        total: count || 0,
+        totalPages: Math.ceil((count || 0) / limit)
+      }
+    };
+
+  } catch (error) {
+    console.error('Error in getPublicListings:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      listings: [],
+      pagination: {
+        page: 1,
+        limit: 20,
+        total: 0,
+        totalPages: 0
+      }
+    };
+  }
+}
+
 export async function getUserListings(userId: string, filters: ListingFilters = {}) {
   const supabase = await createClient();
 
   try {
     // Get user preferences for match scoring
-    const { data: preferences } = await supabase
+    const { data: preferences, error: prefError } = await supabase
       .from('user_preferences')
       .select('*')
       .eq('user_id', userId)
       .single();
+    
+    // If no preferences found, that's okay - just means user hasn't set them yet
+    if (prefError && prefError.code !== 'PGRST116') {
+      console.error('Error fetching preferences:', prefError);
+    }
 
     let query = supabase
       .from('user_matches')
@@ -201,7 +346,18 @@ export async function getUserListings(userId: string, filters: ListingFilters = 
 
     if (error) {
       console.error('Error fetching user listings:', error);
-      throw error;
+      // Don't throw, just return empty results
+      return {
+        success: true,
+        listings: [],
+        pagination: {
+          page: filters.page || 1,
+          limit: filters.limit || 20,
+          total: 0,
+          totalPages: 0
+        },
+        preferences: preferences || null
+      };
     }
 
     // Get total count for pagination
@@ -229,7 +385,15 @@ export async function getUserListings(userId: string, filters: ListingFilters = 
     console.error('Error in getUserListings:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Unknown error',
+      listings: [],
+      pagination: {
+        page: 1,
+        limit: 20,
+        total: 0,
+        totalPages: 0
+      },
+      preferences: null
     };
   }
 }
@@ -246,7 +410,7 @@ export async function dismissListing(userId: string, listingId: string) {
 
     if (error) throw error;
 
-    revalidatePath('/dashboard/listings');
+    revalidatePath('/');
     
     return { success: true };
 
@@ -275,6 +439,91 @@ export async function markListingViewed(userId: string, listingId: string) {
 
   } catch (error) {
     console.error('Error marking listing viewed:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+}
+
+export async function getListingById(listingId: string, userId?: string) {
+  const supabase = await createClient();
+
+  try {
+    // Fetch the listing
+    const { data: listing, error } = await supabase
+      .from('listings')
+      .select('*')
+      .eq('id', listingId)
+      .single();
+
+    if (error) {
+      console.error('Error fetching listing:', error);
+      throw error;
+    }
+
+    if (!listing) {
+      return {
+        success: false,
+        error: 'Listing not found'
+      };
+    }
+
+    // If user is authenticated, check if they have saved this listing
+    let isSaved = false;
+    let matchData = null;
+    
+    if (userId) {
+      const { data: savedListing } = await supabase
+        .from('saved_listings')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('listing_id', listingId)
+        .single();
+      
+      isSaved = !!savedListing;
+
+      // Also get match data if exists
+      const { data: match } = await supabase
+        .from('user_matches')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('listing_id', listingId)
+        .single();
+      
+      matchData = match;
+    }
+
+    // Return different data based on authentication
+    if (userId) {
+      // Authenticated user gets full listing data
+      return {
+        success: true,
+        listing,
+        isSaved,
+        matchData,
+        isAuthenticated: true
+      };
+    } else {
+      // Public user gets listing without contact info
+      const publicListing = {
+        ...listing,
+        contact_name: null,
+        contact_email: null,
+        contact_phone: null,
+      };
+      
+      return {
+        success: true,
+        listing: publicListing,
+        isSaved: false,
+        matchData: null,
+        isAuthenticated: false
+      };
+    }
+
+  } catch (error) {
+    console.error('Error in getListingById:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'
