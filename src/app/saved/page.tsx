@@ -174,7 +174,7 @@ export default async function SavedPage() {
           {savedListings.map((listing) => (
             <div
               key={listing.id}
-              className="group bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow"
+              className="group bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow flex flex-col"
             >
               {/* Image */}
               <Link href={`/listings/${listing.listingId}`}>
@@ -223,7 +223,7 @@ export default async function SavedPage() {
               </Link>
               
               {/* Content */}
-              <div className="p-4">
+              <div className="p-4 flex-1 flex flex-col">
                 <Link href={`/listings/${listing.listingId}`}>
                   <h3 className="font-medium text-gray-900 hover:text-blue-600 transition-colors line-clamp-1">
                     {listing.title}
@@ -261,6 +261,9 @@ export default async function SavedPage() {
                     <span>{listing.size}m²</span>
                   </div>
                 </div>
+                
+                {/* Spacer to push footer to bottom */}
+                <div className="flex-1" />
                 
                 {/* Footer */}
                 <div className="flex items-center justify-between pt-3 mt-3 border-t border-gray-100">

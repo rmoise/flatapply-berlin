@@ -26,7 +26,8 @@ import {
   ChevronDown,
   Filter,
   MessageCircle,
-  BookOpen
+  BookOpen,
+  Mail
 } from 'lucide-react'
 import { type User as SupabaseUser } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
@@ -172,6 +173,13 @@ export function MainNav({ user }: MainNavProps) {
                   </Link>
                 </DropdownMenuContent>
               </DropdownMenu>
+              
+              {/* Mailbox */}
+              <Link href="/mailbox">
+                <Button variant="ghost" size="icon">
+                  <Mail className="h-5 w-5" />
+                </Button>
+              </Link>
               
               {/* Saved */}
               <Link href="/saved">
