@@ -99,17 +99,82 @@ export function MainNav({ user }: MainNavProps) {
             <>
               {/* Free Trial Button */}
               <Button size="sm" className="mr-2 hidden sm:flex">
-                Free Trial
+                Start 7 Day Free Trial
               </Button>
               
               {/* Notifications */}
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell className="h-5 w-5" />
-                <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500" />
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="relative">
+                    <Bell className="h-5 w-5" />
+                    <span className="absolute top-0 right-0 h-4 w-4 rounded-full bg-red-500 text-[10px] font-medium text-white flex items-center justify-center">
+                      3
+                    </span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-80">
+                  <DropdownMenuLabel className="flex items-center justify-between">
+                    <span>Notifications</span>
+                    <Link href="/notifications" className="text-xs text-muted-foreground hover:text-foreground">
+                      View all
+                    </Link>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  
+                  {/* Notification items */}
+                  <div className="max-h-[400px] overflow-y-auto">
+                    <DropdownMenuItem className="flex flex-col items-start gap-1 p-3 cursor-pointer">
+                      <div className="flex items-start gap-3 w-full">
+                        <div className="h-2 w-2 rounded-full bg-blue-500 mt-1.5 shrink-0" />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">New match found!</p>
+                          <p className="text-xs text-muted-foreground">
+                            Beautiful 2-room apartment in Prenzlauer Berg matches your preferences
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">2 hours ago</p>
+                        </div>
+                      </div>
+                    </DropdownMenuItem>
+                    
+                    <DropdownMenuItem className="flex flex-col items-start gap-1 p-3 cursor-pointer">
+                      <div className="flex items-start gap-3 w-full">
+                        <div className="h-2 w-2 rounded-full bg-green-500 mt-1.5 shrink-0" />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">Application viewed</p>
+                          <p className="text-xs text-muted-foreground">
+                            Your application for Friedrichshain apartment was viewed by the landlord
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">5 hours ago</p>
+                        </div>
+                      </div>
+                    </DropdownMenuItem>
+                    
+                    <DropdownMenuItem className="flex flex-col items-start gap-1 p-3 cursor-pointer">
+                      <div className="flex items-start gap-3 w-full">
+                        <div className="h-2 w-2 rounded-full bg-amber-500 mt-1.5 shrink-0" />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">Price drop alert</p>
+                          <p className="text-xs text-muted-foreground">
+                            Apartment in Kreuzberg reduced rent from €1,200 to €1,050
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">1 day ago</p>
+                        </div>
+                      </div>
+                    </DropdownMenuItem>
+                  </div>
+                  
+                  <DropdownMenuSeparator />
+                  <Link href="/notifications">
+                    <DropdownMenuItem className="cursor-pointer">
+                      <Bell className="mr-2 h-4 w-4" />
+                      View all notifications
+                    </DropdownMenuItem>
+                  </Link>
+                </DropdownMenuContent>
+              </DropdownMenu>
               
               {/* Saved */}
-              <Link href="/dashboard/saved">
+              <Link href="/saved">
                 <Button variant="ghost" size="icon">
                   <Heart className="h-5 w-5" />
                 </Button>
@@ -156,7 +221,7 @@ export function MainNav({ user }: MainNavProps) {
                       Profile
                     </DropdownMenuItem>
                   </Link>
-                  <Link href="/dashboard/notifications">
+                  <Link href="/notifications">
                     <DropdownMenuItem>
                       <Bell className="mr-2 h-4 w-4" />
                       Notifications
